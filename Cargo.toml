@@ -14,3 +14,4 @@ bytemuck = { version = "1.14", features = [ "derive" ] }
 glam = "0.25"
 wgpu = "0.18"
 pollster = "0.3"
+anyhow = "1.0"

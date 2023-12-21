@@ -1,11 +1,13 @@
 use winit::window::Window;
 use wgpu::util::DeviceExt;
 
+use crate::texture;
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
     position: [f32; 3],
-    color: [f32; 3],
+    texture_coordinates: [f32; 2],
 }
 
 impl Vertex {
@@ -22,7 +24,7 @@ impl Vertex {
                 wgpu::VertexAttribute {
                     offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
+                    format: wgpu::VertexFormat::Float32x2,
                 }
             ]
         }
@@ -30,9 +32,9 @@ impl Vertex {
 }
 
 const VERTICES: &[Vertex] = &[
-    Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [-0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0] },
-    Vertex { position: [0.5, -0.5, 0.0], color: [0.0, 0.0, 1.0] },
+    Vertex { position: [0.0, 0.5, 0.0], texture_coordinates: [1.0, 0.0] },
+    Vertex { position: [-0.5, -0.5, 0.0], texture_coordinates: [0.0, 1.0] },
+    Vertex { position: [0.5, -0.5, 0.0], texture_coordinates: [0.0, 0.0] },
 ];
 
 pub struct RenderState {
@@ -44,6 +46,8 @@ pub struct RenderState {
     window: Window,
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
+    diffuse_bind_group: wgpu::BindGroup,
+    diffuse_texture: texture::Texture,
 }
 
 impl RenderState {
@@ -95,6 +99,48 @@ impl RenderState {
         };
         surface.configure(&device, &config);
 
+        //Textures
+        let diffuse_bytes = include_bytes!("../assets/tree.png");
+        let diffuse_texture = texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "Tree").unwrap();
+
+        let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+            label: Some("Texture bind group layout"),
+        });
+
+        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.get_view()),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.get_sampler()),
+                }
+            ],
+            label: Some("Diffuse bind group"),
+        });
+
+        //Shaders
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Static Mesh Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("static_mesh_shader.wgsl").into()),
@@ -102,7 +148,7 @@ impl RenderState {
 
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&texture_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -158,6 +204,8 @@ impl RenderState {
             size,
             render_pipeline,
             vertex_buffer,
+            diffuse_bind_group,
+            diffuse_texture,
         }
     }
 
@@ -211,6 +259,7 @@ impl RenderState {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.draw(0..(VERTICES.len() as u32), 0..1);
         }

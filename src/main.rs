@@ -5,6 +5,7 @@ use winit::{
 };
 
 mod render_state;
+mod texture;
 
 fn main() {
     env_logger::init();
