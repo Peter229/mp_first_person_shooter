@@ -77,46 +77,6 @@ impl RenderState {
         surface.configure(&device, &config);
 
         //Textures
-        /*let diffuse_bytes = include_bytes!("../assets/tree.png");
-        let diffuse_texture = texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "Tree").unwrap();
-
-        let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-            label: Some("Texture bind group layout"),
-        });
-
-        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.get_view()),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.get_sampler()),
-                }
-            ],
-            label: Some("Diffuse bind group"),
-        });*/
-
         let depth_texture = texture::Texture::create_depth_texture(&device, &config);
 
         //Models
@@ -312,10 +272,6 @@ impl RenderState {
                     _ => (),
                 }
             }
-            //render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-            //render_pass.set_vertex_buffer(0, self.model.get_vertex_buffer().slice(..));
-            //render_pass.set_index_buffer(self.model.get_index_buffer().slice(..), wgpu::IndexFormat::Uint32);
-            //render_pass.draw_indexed(0..self.model.get_indices_count(), 0, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
