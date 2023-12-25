@@ -6,14 +6,27 @@ use winit::{
 
 mod render_state;
 mod texture;
+mod camera;
+mod gpu_types;
+mod game_state;
+mod render_commands;
+mod model;
+mod resource_manager;
 
 fn main() {
     env_logger::init();
     
     let event_loop = EventLoop::new();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let window = WindowBuilder::new().with_title("mp_first_person_shooter").with_inner_size(winit::dpi::PhysicalSize::new(1280, 720)).build(&event_loop).unwrap();
+
+    let mut resource_manager = resource_manager::ResourceManager::new();
 
     let mut render_state = pollster::block_on(render_state::RenderState::new(window));
+
+    resource_manager.load_model(render_state.get_device(), "./assets/cube.glb", "cube");
+    resource_manager.load_texture(render_state.get_device(), render_state.get_queue(), "../assets/tree.png", "tree");
+
+    let mut game_state = game_state::GameState::new();
 
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
@@ -39,7 +52,7 @@ fn main() {
             _ => {}
         },
         Event::RedrawRequested(window_id) if window_id == render_state.window().id() => {
-            match render_state.render() {
+            match render_state.render(game_state.get_render_commands(), &resource_manager) {
                 Ok(_) => {}
                 Err(wgpu::SurfaceError::Lost) => render_state.resize(render_state.get_size()),
                 Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
@@ -47,6 +60,9 @@ fn main() {
             }
         }
         Event::MainEventsCleared => {
+
+            game_state.update();
+
             render_state.window().request_redraw();
         }
         _ => {}
