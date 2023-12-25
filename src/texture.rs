@@ -4,7 +4,6 @@ use anyhow::*;
 pub struct Texture {
     texture: wgpu::Texture,
     view: wgpu::TextureView,
-    sampler: wgpu::Sampler,
     bind_group: Option<wgpu::BindGroup>
 }
 
@@ -12,10 +11,6 @@ impl Texture {
 
     pub fn get_view(&self) -> &wgpu::TextureView {
         &self.view
-    }
-
-    pub fn get_sampler(&self) -> &wgpu::Sampler {
-        &self.sampler
     }
 
     pub fn get_bind_group(&self) -> Option<&wgpu::BindGroup> {
@@ -45,23 +40,8 @@ impl Texture {
         let texture = device.create_texture(&desc);
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        
-        let sampler = device.create_sampler(
-            &wgpu::SamplerDescriptor {
-                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Nearest,
-                compare: Some(wgpu::CompareFunction::LessEqual),
-                lod_min_clamp: 0.0,
-                lod_max_clamp: 100.0,
-                ..Default::default()
-            }
-        );
 
-        Self { texture, view, sampler, bind_group: None }
+        Self { texture, view, bind_group: None }
     }
 
     pub fn from_bytes(
@@ -144,7 +124,7 @@ impl Texture {
             label: Some("Diffuse bind group"),
         });
         
-        Ok(Self { texture, view, sampler, bind_group: Some(bind_group) } )
+        Ok(Self { texture, view, bind_group: Some(bind_group) } )
     }
 
     pub fn get_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {

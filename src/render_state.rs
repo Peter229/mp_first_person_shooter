@@ -1,11 +1,11 @@
 use winit::window::Window;
 use wgpu::util::DeviceExt;
+use std::rc::Rc;
 
 use crate::resource_manager;
 use crate::texture;
-use crate::render_commands::RenderCommands;
+use crate::render_commands::{RenderCommands, RenderTransform};
 use crate::gpu_types;
-use crate::model;
 
 const VERTICES: &[gpu_types::Vertex] = &[
     gpu_types::Vertex { position: [0.0, 0.5, 0.0], texture_coordinates: [1.0, 0.0] },
@@ -24,7 +24,7 @@ pub struct RenderState {
     depth_texture: texture::Texture,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    model: model::Model,
+    render_transforms: Vec<RenderTransform>,
 }
 
 impl RenderState {
@@ -79,9 +79,6 @@ impl RenderState {
         //Textures
         let depth_texture = texture::Texture::create_depth_texture(&device, &config);
 
-        //Models
-        let model = model::Model::new(&device, "./assets/cube.glb");
-
         //Camera
         let camera_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
@@ -91,7 +88,7 @@ impl RenderState {
             }
         );
 
-        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        let vertex_uniform_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -104,18 +101,18 @@ impl RenderState {
                     count: None,
                 }
             ],
-            label: Some("Camera bind group layout"),
+            label: Some("Vertex uniform bind group layout"),
         });
 
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
+            layout: &vertex_uniform_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: camera_buffer.as_entire_binding(),
                 }
             ],
-            label: Some("Camera bind group"),
+            label: Some("Vertex uniform bind group"),
         });
 
         //Shaders
@@ -128,7 +125,8 @@ impl RenderState {
             label: Some("Render Pipeline Layout"),
             bind_group_layouts: &[
                 &texture::Texture::get_texture_bind_group_layout(&device),
-                &camera_bind_group_layout,
+                &vertex_uniform_bind_group_layout,
+                &vertex_uniform_bind_group_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -174,6 +172,8 @@ impl RenderState {
             multiview: None,
         });
 
+        let render_transforms = Vec::new();
+
         Self {
             window,
             surface,
@@ -185,7 +185,7 @@ impl RenderState {
             depth_texture,
             camera_buffer,
             camera_bind_group,
-            model,
+            render_transforms,
         }
     }
 
@@ -213,6 +213,25 @@ impl RenderState {
             self.config.height = new_size.height;
             self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config);
             self.surface.configure(&self.device, &self.config);
+        }
+    }
+
+    pub fn update_transforms(&mut self, render_commands: &Vec<RenderCommands>) {
+        //Have to do this before render or else the borrow checker gets mad 
+        let mut render_transform_index = 0;
+        for render_command in render_commands {
+            match render_command {
+                RenderCommands::Model(transform, _, _) => {
+                    if self.render_transforms.len() <= render_transform_index {
+                        self.render_transforms.push(RenderTransform::new(&self.device, transform));
+                    }
+                    else {
+                        self.render_transforms[render_transform_index].update_transform(transform);
+                    }
+                    render_transform_index += 1;
+                },
+                _ => (),
+            }
         }
     }
 
@@ -254,6 +273,8 @@ impl RenderState {
                 timestamp_writes: None,
             });
 
+            let mut render_transform_index = 0;
+
             render_pass.set_pipeline(&self.render_pipeline);
             for render_command in render_commands {
                 match render_command {
@@ -264,10 +285,14 @@ impl RenderState {
                     RenderCommands::Model(transform, model_name, texture_name) => {
                         let model = resource_manager.get_model(model_name);
                         let texture = resource_manager.get_texture(texture_name);
+                        self.queue.write_buffer(self.render_transforms[render_transform_index].get_buffer(), 0, bytemuck::cast_slice(&transform.to_cols_array_2d()));
+                        render_pass.set_bind_group(2, self.render_transforms[render_transform_index].get_bind_group(), &[]);
                         render_pass.set_bind_group(0, texture.unwrap().get_bind_group().unwrap(), &[]);
                         render_pass.set_vertex_buffer(0, model.unwrap().get_vertex_buffer().slice(..));
                         render_pass.set_index_buffer(model.unwrap().get_index_buffer().slice(..), wgpu::IndexFormat::Uint32);
                         render_pass.draw_indexed(0..model.unwrap().get_indices_count(), 0, 0..1);
+
+                        render_transform_index += 1;
                     },
                     _ => (),
                 }

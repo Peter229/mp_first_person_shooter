@@ -6,7 +6,7 @@ pub struct Model {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     indices_count: u32,
-    material: String,
+    textures: Vec<String>,
 }
 
 impl Model {
@@ -14,7 +14,6 @@ impl Model {
     pub fn new(device: &wgpu::Device, path: &str) -> Self {
 
         let (document, buffers, _) = gltf::import(path).unwrap();
-
         let mut vertices: Vec<[f32; 3]> = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
         let mut texture_coordinates: Vec<[f32; 2]> = Vec::new();
@@ -67,7 +66,16 @@ impl Model {
             }
         );
 
-        Self { vertex_buffer, index_buffer, indices_count: indices.len() as u32, material: String::from("None") }
+        let mut textures = Vec::new();
+
+        for texture in document.textures() {
+            if texture.name().is_some() {
+                println!("Texture at {}", texture.name().unwrap());
+                textures.push(String::from(texture.name().unwrap()));
+            }
+        }
+
+        Self { vertex_buffer, index_buffer, indices_count: indices.len() as u32, textures }
     }
     
     pub fn get_vertex_buffer(&self) -> &wgpu::Buffer {
@@ -83,5 +91,10 @@ impl Model {
     pub fn get_indices_count(&self) -> u32 {
 
         self.indices_count
+    }
+
+    pub fn get_textures(&self) -> &Vec<String> {
+
+        &self.textures
     }
 }

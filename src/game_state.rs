@@ -46,6 +46,7 @@ impl GameState {
             self.begin_tick();
             self.tick();
             self.end_tick();
+            self.current_tick += 1;
         }
     }
 
@@ -56,16 +57,31 @@ impl GameState {
 
     fn tick(&mut self) {
 
+        match self.current_state {
+            States::Start => {
+
+            },
+        }
+
         self.render_commands.push(render_commands::RenderCommands::Camera(self.camera.build_projection_matrix().to_cols_array_2d()));
-        self.render_commands.push(render_commands::RenderCommands::Model(glam::Mat4::IDENTITY.to_cols_array_2d(), "cube".to_string(), "tree".to_string()));
+        //T * R * S
+        {
+            let rotation = glam::f32::Mat4::from_euler(glam::EulerRot::XYZ, self.current_tick as f32 / 10.0, self.current_tick as f32 / 10.0, 0.0);
+            let translation = glam::f32::Mat4::from_translation(glam::f32::Vec3::new((self.current_tick as f32 / 20.0).sin() * 2.0, 0.0, 0.0));
+            let transform = translation * rotation;
+            self.render_commands.push(render_commands::RenderCommands::Model(transform, "cube".to_string(), "tree".to_string()));
+        }
+        {
+            let rotation = glam::f32::Mat4::from_euler(glam::EulerRot::XYZ, self.current_tick as f32 / 12.0, self.current_tick as f32 / 40.0, 0.0);
+            let translation = glam::f32::Mat4::from_translation(glam::f32::Vec3::new((self.current_tick as f32 / 10.0).sin() * 1.5, 2.0, 0.0));
+            let transform = translation * rotation;
+            self.render_commands.push(render_commands::RenderCommands::Model(transform, "cube".to_string(), "tree".to_string()));
+        }
     }
 
     fn end_tick(&mut self) {
          
         //If you want to save the current state put it here
-
-        //End :)
-        self.current_tick += 1;
     }
 
     pub fn get_render_commands(&self) -> &Vec<render_commands::RenderCommands> {

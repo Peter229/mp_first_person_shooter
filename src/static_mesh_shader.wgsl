@@ -1,5 +1,7 @@
 @group(1) @binding(0)
 var<uniform> camera_view_projection: mat4x4<f32>;
+@group(2) @binding(0)
+var<uniform> model_transform: mat4x4<f32>;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -12,11 +14,9 @@ struct VertexOutput {
 };
 
 @vertex
-fn vs_main(
-    vertex: VertexInput,
-) -> VertexOutput {
+fn vs_main(vertex: VertexInput) -> VertexOutput {
     var out: VertexOutput;
-    out.clip_position = camera_view_projection * vec4<f32>(vertex.position, 1.0);
+    out.clip_position = camera_view_projection * model_transform * vec4<f32>(vertex.position, 1.0);
     out.texture_coordinates = vertex.texture_coordinates;
     return out;
 }

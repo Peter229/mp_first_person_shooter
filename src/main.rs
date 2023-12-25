@@ -62,7 +62,7 @@ fn main() {
         Event::MainEventsCleared => {
 
             game_state.update();
-
+            render_state.update_transforms(game_state.get_render_commands());
             render_state.window().request_redraw();
         }
         _ => {}
