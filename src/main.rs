@@ -12,6 +12,8 @@ mod game_state;
 mod render_commands;
 mod model;
 mod resource_manager;
+mod player;
+mod collision;
 
 fn main() {
     env_logger::init();

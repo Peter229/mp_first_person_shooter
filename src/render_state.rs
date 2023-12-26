@@ -233,6 +233,7 @@ impl RenderState {
                 _ => (),
             }
         }
+        self.render_transforms.drain(render_transform_index..);
     }
 
     pub fn render(&mut self, render_commands: &Vec<RenderCommands>, resource_manager: &resource_manager::ResourceManager) -> Result<(), wgpu::SurfaceError> {
