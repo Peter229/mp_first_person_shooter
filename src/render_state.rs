@@ -7,12 +7,6 @@ use crate::texture;
 use crate::render_commands::{RenderCommands, RenderTransform};
 use crate::gpu_types;
 
-const VERTICES: &[gpu_types::Vertex] = &[
-    gpu_types::Vertex { position: [0.0, 0.5, 0.0], texture_coordinates: [1.0, 0.0] },
-    gpu_types::Vertex { position: [-0.5, -0.5, 0.0], texture_coordinates: [0.0, 1.0] },
-    gpu_types::Vertex { position: [0.5, -0.5, 0.0], texture_coordinates: [0.0, 0.0] },
-];
-
 pub struct RenderState {
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -216,6 +210,7 @@ impl RenderState {
         }
     }
 
+    //Do not parallelize this function or the rendering calls, render order is required for transform to stay correct
     pub fn update_transforms(&mut self, render_commands: &Vec<RenderCommands>) {
         //Have to do this before render or else the borrow checker gets mad 
         let mut render_transform_index = 0;

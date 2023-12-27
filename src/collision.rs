@@ -1,7 +1,19 @@
+use crate::render_commands;
 
 //Collision detection methods
-//Sphere vs Sphere
-//Sphere vs Capsule
+//Will probably need oct tree or quad tree for performance
+//Add enum variant so can generic collide method
+//M = Moving supported from row, column is stationary
+//             | Sphere | Capsule Triangle TriangleSoup Ray AABB Cylinder
+//Sphere       | Yes    | Yes
+//Capsule      | Yes    | Yes
+//Triangle     | 
+//TriangleSoup |
+//Ray          |
+//AABB         |
+//Cylinder     |
+
+//Make each type return a transform for easy debug rendering 
 
 #[derive(Debug, Copy, Clone)]
 pub struct CollisionPacket {
@@ -28,7 +40,7 @@ impl Sphere {
 
         let distance_between_spheres = (self.center - other.center).length();
         let penetration = (self.radius + other.radius) - distance_between_spheres;
-        let collided = distance_between_spheres <= (self.radius - other.radius).abs();
+        let collided = distance_between_spheres <= (self.radius + other.radius).abs();
         let normal = (self.center - other.center).normalize_or_zero();
         let position = (self.center + normal * penetration) - (normal * self.radius);
 
@@ -44,7 +56,22 @@ impl Sphere {
 
         let best_b = closest_point_on_line(&other_a, &other_b, &self.center);
 
-        self.vs_sphere(&Sphere::new(best_b, other.get_radius()))
+        self.vs_sphere(&Sphere::new(best_b, other.radius))
+    }
+
+    pub fn set_center(&mut self, center: glam::f32::Vec3) {
+
+        self.center = center;
+    }
+
+    pub fn get_transform(&self) -> glam::f32::Mat4 {
+
+        glam::f32::Mat4::from_scale_rotation_translation(glam::f32::Vec3::new(self.radius, self.radius, self.radius), glam::f32::Quat::IDENTITY, self.center)
+    }
+
+    pub fn render(&self, render_commands: &mut Vec<render_commands::RenderCommands>) {
+
+        render_commands.push(render_commands::RenderCommands::Model(self.get_transform(), "sphere".to_string(), "debug".to_string()));
     }
 }
 
@@ -109,6 +136,33 @@ impl Capsule {
     pub fn get_radius(&self) -> f32 {
 
         self.radius
+    }
+
+    pub fn set_center(&mut self, center: glam::f32::Vec3) {
+
+        let current_center = (self.base + self.tip) / 2.0;
+        let translation = center - current_center; 
+        self.base += translation;
+        self.tip += translation;
+    }
+
+    pub fn render(&self, render_commands: &mut Vec<render_commands::RenderCommands>) {
+
+        let up = (self.tip - self.base).normalize_or_zero();
+        let line_end_offset = up * self.radius;
+        let base_sphere_center = self.base + line_end_offset;
+        let tip_sphere_center = self.tip - line_end_offset;
+        let center = (self.tip + self.base) / 2.0;
+        let rotation = glam::f32::Quat::from_rotation_arc(glam::f32::Vec3::Y, up);
+
+        let base_sphere = glam::f32::Mat4::from_scale_rotation_translation(glam::f32::Vec3::new(self.radius, self.radius, self.radius), rotation, base_sphere_center);
+        render_commands.push(render_commands::RenderCommands::Model(base_sphere, "sphere".to_string(), "debug".to_string()));
+
+        let tip_sphere = glam::f32::Mat4::from_scale_rotation_translation(glam::f32::Vec3::new(self.radius, self.radius, self.radius), rotation, tip_sphere_center);
+        render_commands.push(render_commands::RenderCommands::Model(tip_sphere, "sphere".to_string(), "debug".to_string()));
+
+        let cylinder = glam::f32::Mat4::from_scale_rotation_translation(glam::f32::Vec3::new(self.radius, base_sphere_center.distance(tip_sphere_center) / 2.0, self.radius), rotation, center);
+        render_commands.push(render_commands::RenderCommands::Model(cylinder, "cylinder".to_string(), "debug".to_string()));
     }
 }
 

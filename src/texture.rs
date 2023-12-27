@@ -44,6 +44,17 @@ impl Texture {
         Self { texture, view, bind_group: None }
     }
 
+    pub fn from_disk(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        path: &str,
+        label: &str,
+    ) -> Result<Self> {
+
+        let image = image::open(path)?;
+        Self::from_image(device, queue, &image, Some(label))
+    }
+
     pub fn from_bytes(
         device: &wgpu::Device,
         queue: &wgpu::Queue,

@@ -17,6 +17,7 @@ impl Model {
         let mut vertices: Vec<[f32; 3]> = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
         let mut texture_coordinates: Vec<[f32; 2]> = Vec::new();
+        let mut normals: Vec<[f32; 3]> = Vec::new();
 
         for mesh in document.meshes() {
 
@@ -41,13 +42,19 @@ impl Model {
                         texture_coordinates.push(texture_coordinate);
                     }
                 }
+
+                if let Some(iter) = reader.read_normals() {
+                    for normal in iter {
+                        normals.push(normal);
+                    }
+                }
             }
         }
 
         let mut weaved_vertices: Vec<gpu_types::Vertex> = Vec::new();
 
         for i in 0..vertices.len() {
-            weaved_vertices.push(gpu_types::Vertex { position: vertices[i], texture_coordinates: texture_coordinates[i] });
+            weaved_vertices.push(gpu_types::Vertex { position: vertices[i], normal: normals[i], texture_coordinates: texture_coordinates[i] });
         }
 
         let vertex_buffer = device.create_buffer_init(

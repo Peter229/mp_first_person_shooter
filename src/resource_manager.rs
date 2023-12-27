@@ -34,9 +34,8 @@ impl ResourceManager {
             eprintln!("Already loaded texture: {} at {}", name, path);
         }
         else {
-
-            let diffuse_bytes = include_bytes!("../assets/tree.png");
-            let diffuse_texture = texture::Texture::from_bytes(&device, &queue, diffuse_bytes, name).unwrap();
+            
+            let diffuse_texture = texture::Texture::from_disk(&device, &queue, path, name).unwrap();
             self.textures.insert(name.to_string(), diffuse_texture);
         }
     }
