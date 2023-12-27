@@ -1,3 +1,5 @@
+use crate::collision;
+
 pub struct Player {
     position: glam::f32::Vec3,
     velocity: glam::f32::Vec3,

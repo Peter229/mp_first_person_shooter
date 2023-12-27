@@ -16,3 +16,4 @@ wgpu = "0.18"
 pollster = "0.3"
 anyhow = "1.0"
 gltf = "1.4.0"
+serde = { version = "1.0.193", features = ["derive"] }
