@@ -9,11 +9,11 @@ use crate::render_commands;
 //If laggy after spatial tree optimazation don't return collision packet as mem alloc every collision call, instead pass reference
 //M = Moving supported from row, column is stationary
 //             | Sphere | Capsule | Triangle | TriangleSoup | Ray | AABB | Cylinder
-//Sphere       | Yes    | Yes     | Yes      | Yes          |     |      |
-//Capsule      | Yes    | Yes     |          |              |     |      |
-//Triangle     | Yes    |         |          |              | Yes |      |
-//TriangleSoup | Yes    |         |          |              | Yes |      |
-//Ray          | Yes    |         |          |              |     |      |
+//Sphere       | Yes    | Yes     | Yes M    | Yes M        | Yes |      |
+//Capsule      | Yes    | Yes     | Yes      | Yes          | Yes |      |
+//Triangle     | Yes M  | Yes     |          |              | Yes |      |
+//TriangleSoup | Yes M  | Yes     |          |              | Yes |      |
+//Ray          | Yes    | Yes     | Yes      | Yes          |     |      |
 //AABB         |        |         |          |              |     |      |
 //Cylinder     |        |         |          |              |     |      |
 
@@ -91,7 +91,7 @@ impl Sphere {
         let point_2 = closest_point_on_line(&triangle.vertex_1, &triangle.vertex_2, &self.center);
         let v2 = self.center - point_2;
         let sq_dist_2 = v2.dot(v2);
-        intersects = sq_dist_2 < sq_radius;
+        intersects |= sq_dist_2 < sq_radius;
 
         let point_3 = closest_point_on_line(&triangle.vertex_2, &triangle.vertex_0, &self.center);
         let v3 = self.center - point_3;
@@ -139,9 +139,130 @@ impl Sphere {
         CollisionPacket { collided: intersects || inside, position: best_point, normal, penetration_or_time }
     }
 
+    pub fn vs_while_moving_triangle(&self, velocity: &glam::f32::Vec3, triangle: &Triangle) -> CollisionPacket {
+
+        let ray = Ray::new(self.center, *velocity);
+
+        let mut best_collision_packet = ray.vs_cylinder(&triangle.vertex_0, &triangle.vertex_1, self.radius); 
+
+        let mut collision_packet = ray.vs_cylinder(&triangle.vertex_1, &triangle.vertex_2, self.radius);
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        collision_packet = ray.vs_cylinder(&triangle.vertex_2, &triangle.vertex_0, self.radius);
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        collision_packet = ray.vs_sphere(&Sphere::new(triangle.vertex_0, self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        collision_packet = ray.vs_sphere(&Sphere::new(triangle.vertex_1, self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        collision_packet = ray.vs_sphere(&Sphere::new(triangle.vertex_2, self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        //Only need to do front face as we don't care about back face collision
+        let v1v0 = triangle.vertex_1 - triangle.vertex_0;
+        let v2v0 = triangle.vertex_2 - triangle.vertex_0;
+        let triangle_normal_offset = v1v0.cross(v2v0).normalize_or_zero() * self.radius;
+        collision_packet = ray.vs_triangle(&Triangle::new(triangle.vertex_0 + triangle_normal_offset, triangle.vertex_1 + triangle_normal_offset, triangle.vertex_2 + triangle_normal_offset));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        best_collision_packet.collided = collision_packet.penetration_or_time < 1.0;
+
+        best_collision_packet
+    }
+
+    pub fn vs_ray(&self, ray: &Ray) -> CollisionPacket {
+
+        ray.vs_sphere(self)
+    }
+
     pub fn vs_triangle_soup(&self, triangle_soup: &TriangleSoup) -> CollisionPacket {
 
         triangle_soup.vs_sphere(self)
+    }
+
+    pub fn vs_while_moving_triangle_soup(&self, velocity: &glam::f32::Vec3, triangle_soup: &TriangleSoup) -> CollisionPacket {
+
+        triangle_soup.vs_moving_sphere(self, velocity)
     }
 
     pub fn set_center(&mut self, center: glam::f32::Vec3) {
@@ -219,6 +340,41 @@ impl Capsule {
         CollisionPacket { collided, position, normal, penetration_or_time }
     }
 
+    pub fn vs_triangle(&self, triangle: &Triangle) -> CollisionPacket {
+
+        let triangle_normal = ((triangle.vertex_1 - triangle.vertex_0).cross(triangle.vertex_2 - triangle.vertex_0)).normalize_or_zero();
+
+        let capsule_normal = (self.tip - self.base).normalize_or_zero();
+
+        let line_end_offset = capsule_normal * self.radius;
+        let a = self.base + line_end_offset;
+        let b = self.tip - line_end_offset;
+
+        let mut reference_point = triangle.vertex_0;
+
+        if capsule_normal.dot(triangle_normal) != 0.0 {
+
+            let t = triangle_normal.dot(triangle.vertex_0 - self.base) / triangle_normal.dot(capsule_normal).abs();
+            let line_plane_intersection = self.base + capsule_normal * t;
+
+            reference_point = closest_point_on_triangle(triangle, &triangle_normal, &line_plane_intersection);
+        }
+
+        let center = closest_point_on_line(&a, &b, &reference_point);
+
+        triangle.vs_sphere(&Sphere::new(center, self.radius))
+    }
+
+    pub fn vs_triangle_soup(&self, triangle_soup: &TriangleSoup) -> CollisionPacket {
+
+        triangle_soup.vs_capsule(self)
+    }
+
+    pub fn vs_ray(&self, ray: &Ray) -> CollisionPacket {
+
+        ray.vs_capsule(self)
+    }
+
     pub fn get_radius(&self) -> f32 {
 
         self.radius
@@ -275,6 +431,11 @@ impl Triangle {
         
         ray.vs_triangle(self)
     }
+
+    pub fn vs_moving_sphere(&self, sphere: &Sphere, velocity: &glam::f32::Vec3) -> CollisionPacket {
+
+        sphere.vs_while_moving_triangle(velocity, self)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -306,6 +467,23 @@ impl TriangleSoup {
         best_collision_packet
     }
 
+    pub fn vs_capsule(&self, capsule: &Capsule) -> CollisionPacket {
+
+        let mut best_collision_packet = CollisionPacket { collided: false, position: glam::f32::Vec3::ZERO, normal: glam::f32::Vec3::Y, penetration_or_time: f32::MAX };
+
+        for i in 0..self.triangles.len() {
+
+            let collision_packet = capsule.vs_triangle(&self.triangles[i]);
+            if collision_packet.collided {
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    best_collision_packet = collision_packet;
+                }
+            }
+        }
+
+        best_collision_packet
+    }
+
     pub fn vs_ray(&self, ray: &Ray) -> CollisionPacket {
 
         let mut best_collision_packet = CollisionPacket { collided: false, position: glam::f32::Vec3::ZERO, normal: glam::f32::Vec3::Y, penetration_or_time: f32::MAX };
@@ -313,6 +491,23 @@ impl TriangleSoup {
         for i in 0..self.triangles.len() {
 
             let collision_packet = ray.vs_triangle(&self.triangles[i]);
+            if collision_packet.collided {
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    best_collision_packet = collision_packet;
+                }
+            }
+        }
+
+        best_collision_packet
+    }
+
+    pub fn vs_moving_sphere(&self, sphere: &Sphere, velocity: &glam::f32::Vec3) -> CollisionPacket {
+
+        let mut best_collision_packet = CollisionPacket { collided: false, position: glam::f32::Vec3::ZERO, normal: glam::f32::Vec3::Y, penetration_or_time: f32::MAX };
+
+        for i in 0..self.triangles.len() {
+
+            let collision_packet = sphere.vs_while_moving_triangle(velocity, &self.triangles[i]);
             if collision_packet.collided {
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
                     best_collision_packet = collision_packet;
@@ -335,6 +530,107 @@ impl Ray {
     pub fn new(start: glam::f32::Vec3, direction: glam::f32::Vec3) -> Self {
 
         Self { start, direction }
+    }
+
+    pub fn vs_sphere(&self, sphere: &Sphere) -> CollisionPacket {
+
+        let co = self.start - sphere.center;
+
+        let a = self.direction.dot(self.direction);
+        let b = co.dot(self.direction);
+        let c = co.dot(co) - (sphere.radius * sphere.radius);
+
+        let discriminant = b * b - a * c;
+        if discriminant < 0.0 {
+
+            return CollisionPacket { collided: false, position: glam::f32::Vec3::ZERO, normal: glam::f32::Vec3::Y, penetration_or_time: 0.0 };
+        }
+
+        let penetration_or_time = (-b - discriminant.sqrt()) / a;
+        let collided = penetration_or_time > 0.0;
+
+        let normal = co + penetration_or_time * self.direction;
+        
+        CollisionPacket { collided, position: self.start + self.direction * penetration_or_time, normal, penetration_or_time }
+    }
+
+    //Maybe I should make a cylinder struct
+    pub fn vs_cylinder(&self, base: &glam::f32::Vec3, tip: &glam::f32::Vec3, radius: f32) -> CollisionPacket {
+
+        let ray_direction = self.direction.normalize_or_zero();
+        let cylinder_center = (*base + *tip) / 2.0;
+        let mut ch = (*tip - *base).length();
+        let ca = (*tip - *base) / ch;
+
+        let oc = self.start - cylinder_center;
+        ch *= 0.5;
+
+        let card = ca.dot(ray_direction);
+        let caoc = ca.dot(oc);
+
+        let a = 1.0 - card * card;
+        let b = oc.dot(ray_direction) - caoc * card;
+        let c = oc.dot(oc) - caoc * caoc - radius * radius;
+        let h = b * b - a * c;
+        if h < 0.0 {
+
+            return CollisionPacket { collided: false, position: glam::f32::Vec3::ZERO, normal: glam::f32::Vec3::Y, penetration_or_time: 0.0 };
+        }
+
+        let t = (-b - (h.sqrt())) / a;
+        let y = caoc + t * card;
+        if y.abs() > ch {
+
+            return CollisionPacket { collided: false, position: glam::f32::Vec3::ZERO, normal: glam::f32::Vec3::Y, penetration_or_time: 0.0 };
+        }
+
+        let normal = (oc + t * ray_direction - ca * y).normalize();
+        let collided = t > 0.0;
+        let penetration_or_time = t / (self.direction).length();
+
+        return CollisionPacket { collided, position: self.start + ray_direction * t, normal, penetration_or_time };
+    }
+
+    pub fn vs_capsule(&self, capsule: &Capsule) -> CollisionPacket {
+
+        let capsule_length = (capsule.tip - capsule.base).normalize_or_zero();
+        let self_line_end_offset = capsule_length * capsule.radius;
+        let a = capsule.base + self_line_end_offset;
+        let b = capsule.tip - self_line_end_offset;
+
+        let mut best_collision_packet = self.vs_sphere(&Sphere::new(a, capsule.radius));
+
+        let mut collision_packet = self.vs_sphere(&Sphere::new(b, capsule.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        collision_packet = self.vs_cylinder(&capsule.base, &capsule.tip, capsule.radius);
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        best_collision_packet
     }
 
     pub fn vs_triangle(&self, triangle: &Triangle) -> CollisionPacket {
@@ -383,4 +679,40 @@ pub fn closest_point_on_line(a: &glam::f32::Vec3, b: &glam::f32::Vec3, point: &g
     let ab = *b - *a;
     let t = (*point - *a).dot(ab) / ab.dot(ab);
     return (*a + (t.max(0.0).min(1.0)) * ab);
+}
+
+pub fn closest_point_on_triangle(triangle: &Triangle, triangle_normal: &glam::f32::Vec3, point: &glam::f32::Vec3)  -> glam::f32::Vec3 {
+
+    let c0 = (*point - triangle.vertex_0).cross(triangle.vertex_1 - triangle.vertex_0);
+    let c1 = (*point - triangle.vertex_1).cross(triangle.vertex_2 - triangle.vertex_1);
+    let c2 = (*point - triangle.vertex_2).cross(triangle.vertex_0 - triangle.vertex_2);
+    
+    let inside = c0.dot(*triangle_normal) <= 0.0 && c1.dot(*triangle_normal) <= 0.0 && c2.dot(*triangle_normal) <= 0.0;
+
+    if inside {
+
+        return *point;
+    }
+
+    let point_1 = closest_point_on_line(&triangle.vertex_0, &triangle.vertex_1, point);
+    let v1 = *point - point_1;
+    let mut sq_dist = v1.dot(v1);
+    let mut best_dist = sq_dist;
+    let mut closest_point = point_1;
+
+    let point_2 = closest_point_on_line(&triangle.vertex_1, &triangle.vertex_2, point);
+    let v2 = *point - point_2;
+    sq_dist = v2.dot(v2);
+    if sq_dist < best_dist {
+        closest_point = point_2;
+    }
+
+    let point_3 = closest_point_on_line(&triangle.vertex_1, &triangle.vertex_2, point);
+    let v3 = *point - point_3;
+    sq_dist = v3.dot(v3);
+    if sq_dist < best_dist {
+        closest_point = point_3;
+    }
+    
+    closest_point
 }
