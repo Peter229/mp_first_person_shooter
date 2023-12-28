@@ -7,12 +7,13 @@ use crate::render_commands;
 //Add enum variant so can generic collide method
 //Should probably automate collison and use layers to decided what should and should not collide
 //If laggy after spatial tree optimazation don't return collision packet as mem alloc every collision call, instead pass reference
+//To do CCD expand shape by colliding shape and then just do ray vs the expanded shape
 //M = Moving supported from row, column is stationary
 //             | Sphere | Capsule | Triangle | TriangleSoup | Ray | AABB | Cylinder
 //Sphere       | Yes    | Yes     | Yes M    | Yes M        | Yes |      |
-//Capsule      | Yes    | Yes     | Yes      | Yes          | Yes |      |
-//Triangle     | Yes M  | Yes     |          |              | Yes |      |
-//TriangleSoup | Yes M  | Yes     |          |              | Yes |      |
+//Capsule      | Yes    | Yes     | Yes M    | Yes M        | Yes |      |
+//Triangle     | Yes M  | Yes M   |          |              | Yes |      |
+//TriangleSoup | Yes M  | Yes M   |          |              | Yes |      |
 //Ray          | Yes    | Yes     | Yes      | Yes          |     |      |
 //AABB         |        |         |          |              |     |      |
 //Cylinder     |        |         |          |              |     |      |
@@ -225,11 +226,28 @@ impl Sphere {
             }
         }
 
-        //Only need to do front face as we don't care about back face collision
+        //Front face
         let v1v0 = triangle.vertex_1 - triangle.vertex_0;
         let v2v0 = triangle.vertex_2 - triangle.vertex_0;
         let triangle_normal_offset = v1v0.cross(v2v0).normalize_or_zero() * self.radius;
         collision_packet = ray.vs_triangle(&Triangle::new(triangle.vertex_0 + triangle_normal_offset, triangle.vertex_1 + triangle_normal_offset, triangle.vertex_2 + triangle_normal_offset));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        //Back face
+        collision_packet = ray.vs_triangle(&Triangle::new(triangle.vertex_0 - triangle_normal_offset, triangle.vertex_2 - triangle_normal_offset, triangle.vertex_1 - triangle_normal_offset));
         if collision_packet.collided {
 
             if best_collision_packet.collided {
@@ -365,6 +383,310 @@ impl Capsule {
         triangle.vs_sphere(&Sphere::new(center, self.radius))
     }
 
+    pub fn vs_while_moving_triangle(&self, velocity: &glam::f32::Vec3, triangle: &Triangle) -> CollisionPacket {
+
+        let ray = Ray::new((self.base + self.tip) / 2.0, *velocity);
+
+        let self_normal = (self.tip - self.base).normalize_or_zero();
+        let self_line_end_offset = self_normal * self.radius;
+        let self_a = self.base + self_line_end_offset;
+        let self_b = self.tip - self_line_end_offset;
+
+        let mut test_capsule = self.clone();
+        //Test against triangle vertexes
+        test_capsule.set_center(triangle.vertex_0);
+        let tip_1 = test_capsule.tip;
+        let base_1 = test_capsule.base;
+        let mut best_collision_packet = ray.vs_capsule(&test_capsule);
+
+        test_capsule.set_center(triangle.vertex_1);
+        let tip_2 = test_capsule.tip;
+        let base_2 = test_capsule.base;
+        let mut collision_packet = ray.vs_capsule(&test_capsule);
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        test_capsule.set_center(triangle.vertex_2);
+        let tip_3 = test_capsule.tip;
+        let base_3 = test_capsule.base;
+        collision_packet = ray.vs_capsule(&test_capsule);
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        //Triangle edges top
+        let mut test_capsule_direction = (tip_2 - tip_1).normalize_or_zero() * self.radius;
+        let point_a = tip_1 - self_normal * self.radius;
+        let point_b = tip_2 - self_normal * self.radius;
+        let point_c = tip_3 - self_normal * self.radius;
+        collision_packet = ray.vs_capsule(&Capsule::new(point_b + test_capsule_direction, point_a - test_capsule_direction, self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        test_capsule_direction = (tip_3 - tip_1).normalize_or_zero() * self.radius;
+        collision_packet = ray.vs_capsule(&Capsule::new(point_c + test_capsule_direction, point_a - test_capsule_direction, self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        test_capsule_direction = (tip_3 - tip_2).normalize_or_zero() * self.radius;
+        collision_packet = ray.vs_capsule(&Capsule::new(point_c + test_capsule_direction, point_b - test_capsule_direction, self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        //Triangle edges bottom
+        test_capsule_direction = (base_2 - base_1).normalize_or_zero() * self.radius;
+        let point_a_base = base_1 - self_normal * self.radius;
+        let point_b_base = base_2 - self_normal * self.radius;
+        let point_c_base = base_3 - self_normal * self.radius;
+        collision_packet = ray.vs_capsule(&Capsule::new(point_b_base + test_capsule_direction, point_a_base - test_capsule_direction, self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        test_capsule_direction = (base_3 - base_1).normalize_or_zero() * self.radius;
+        collision_packet = ray.vs_capsule(&Capsule::new(point_c_base + test_capsule_direction, point_a_base - test_capsule_direction, self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        test_capsule_direction = (base_3 - base_2).normalize_or_zero() * self.radius;
+        collision_packet = ray.vs_capsule(&Capsule::new(point_c_base + test_capsule_direction, point_b_base - test_capsule_direction, self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        //Sides
+        let triangle_normal = (triangle.vertex_1 - triangle.vertex_0).cross(triangle.vertex_2 - triangle.vertex_0).normalize_or_zero();
+        let edge_1_normal = triangle_normal.cross(triangle.vertex_1 - triangle.vertex_0).normalize_or_zero();
+        collision_packet = ray.vs_triangle(&Triangle::new(point_a + edge_1_normal * self.radius, point_b + edge_1_normal * self.radius, point_a_base + edge_1_normal * self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+        collision_packet = ray.vs_triangle(&Triangle::new(point_a_base + edge_1_normal * self.radius, point_b_base + edge_1_normal * self.radius, point_b + edge_1_normal * self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        let edge_2_normal = triangle_normal.cross(triangle.vertex_2 - triangle.vertex_0).normalize_or_zero();
+        collision_packet = ray.vs_triangle(&Triangle::new(point_a + edge_2_normal * self.radius, point_c + edge_2_normal * self.radius, point_a_base + edge_2_normal * self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+        collision_packet = ray.vs_triangle(&Triangle::new(point_a_base + edge_2_normal * self.radius, point_c_base + edge_2_normal * self.radius, point_c + edge_2_normal * self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        let edge_3_normal = triangle_normal.cross(triangle.vertex_2 - triangle.vertex_1).normalize_or_zero();
+        collision_packet = ray.vs_triangle(&Triangle::new(point_b + edge_3_normal * self.radius, point_c + edge_3_normal * self.radius, point_b_base + edge_3_normal * self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+        collision_packet = ray.vs_triangle(&Triangle::new(point_b_base + edge_3_normal * self.radius, point_c_base + edge_3_normal * self.radius, point_c + edge_3_normal * self.radius));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        //Front face
+        collision_packet = ray.vs_triangle(&Triangle::new(tip_1, tip_2, tip_3));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        //Back face
+        collision_packet = ray.vs_triangle(&Triangle::new(base_1, base_3, base_2));
+        if collision_packet.collided {
+
+            if best_collision_packet.collided {
+
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    
+                    best_collision_packet = collision_packet;
+                }
+            }
+            else {
+
+                best_collision_packet = collision_packet;
+            }
+        }
+
+        best_collision_packet
+    }
+
+    pub fn vs_while_moving_triangle_soup(&self, velocity: &glam::f32::Vec3, triangle_soup: &TriangleSoup) -> CollisionPacket {
+
+        triangle_soup.vs_moving_capsule(self, velocity)
+    }
+
     pub fn vs_triangle_soup(&self, triangle_soup: &TriangleSoup) -> CollisionPacket {
 
         triangle_soup.vs_capsule(self)
@@ -435,6 +757,11 @@ impl Triangle {
     pub fn vs_moving_sphere(&self, sphere: &Sphere, velocity: &glam::f32::Vec3) -> CollisionPacket {
 
         sphere.vs_while_moving_triangle(velocity, self)
+    }
+
+    pub fn vs_moving_capsule(&self, capsule: &Capsule, velocity: &glam::f32::Vec3) -> CollisionPacket {
+
+        capsule.vs_while_moving_triangle(velocity, self)
     }
 }
 
@@ -508,6 +835,23 @@ impl TriangleSoup {
         for i in 0..self.triangles.len() {
 
             let collision_packet = sphere.vs_while_moving_triangle(velocity, &self.triangles[i]);
+            if collision_packet.collided {
+                if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
+                    best_collision_packet = collision_packet;
+                }
+            }
+        }
+
+        best_collision_packet
+    }
+
+    pub fn vs_moving_capsule(&self, capsule: &Capsule, velocity: &glam::f32::Vec3) -> CollisionPacket {
+
+        let mut best_collision_packet = CollisionPacket { collided: false, position: glam::f32::Vec3::ZERO, normal: glam::f32::Vec3::Y, penetration_or_time: f32::MAX };
+
+        for i in 0..self.triangles.len() {
+
+            let collision_packet = capsule.vs_while_moving_triangle(velocity, &self.triangles[i]);
             if collision_packet.collided {
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
                     best_collision_packet = collision_packet;

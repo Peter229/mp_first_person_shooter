@@ -1,17 +1,20 @@
+use gltf::mesh::util::indices;
 use wgpu::util::DeviceExt;
 
 use crate::gpu_types;
+use crate::collision;
 
 pub struct Model {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     indices_count: u32,
     textures: Vec<String>,
+    collision: Option<collision::TriangleSoup>,
 }
 
 impl Model {
 
-    pub fn new(device: &wgpu::Device, path: &str) -> Self {
+    pub fn new(device: &wgpu::Device, path: &str, with_collision: bool) -> Self {
 
         let (document, buffers, _) = gltf::import(path).unwrap();
         let mut vertices: Vec<[f32; 3]> = Vec::new();
@@ -82,9 +85,27 @@ impl Model {
             }
         }
 
-        Self { vertex_buffer, index_buffer, indices_count: indices.len() as u32, textures }
+        let mut collision = None;
+
+        if with_collision {
+
+            collision = Some(Model::generate_triangle_soup(&vertices, &indices));
+        }
+
+        Self { vertex_buffer, index_buffer, indices_count: indices.len() as u32, textures, collision }
     }
     
+    pub fn generate_triangle_soup(vertices: &Vec<[f32; 3]>, indices: &Vec<u32>) -> collision::TriangleSoup {
+
+        collision::TriangleSoup::new(indices.into_iter().step_by(3).map(|index| 
+            collision::Triangle::new(vertices[*index as usize].into(), vertices[*index as usize + 1].into(), vertices[*index as usize + 2].into())).collect())
+    }
+
+    pub fn get_collision(&self) -> &collision::TriangleSoup {
+
+        &self.collision.as_ref().unwrap()
+    }
+
     pub fn get_vertex_buffer(&self) -> &wgpu::Buffer {
 
         &self.vertex_buffer

@@ -15,7 +15,7 @@ impl ResourceManager {
         Self { models: HashMap::new(), textures: HashMap::new() }
     }
 
-    pub fn load_model(&mut self, device: &wgpu::Device, path: &str, name: &str) {
+    pub fn load_model(&mut self, device: &wgpu::Device, path: &str, name: &str, with_collision: bool) {
 
         if self.models.contains_key(name) {
 
@@ -23,7 +23,8 @@ impl ResourceManager {
         }
         else {
 
-            self.models.insert(name.to_string(), model::Model::new(device, path));
+            println!("Now loading {}", path);
+            self.models.insert(name.to_string(), model::Model::new(device, path, with_collision));
         }
     }
 
@@ -35,6 +36,7 @@ impl ResourceManager {
         }
         else {
             
+            println!("Now loading {}", path);
             let diffuse_texture = texture::Texture::from_disk(&device, &queue, path, name).unwrap();
             self.textures.insert(name.to_string(), diffuse_texture);
         }

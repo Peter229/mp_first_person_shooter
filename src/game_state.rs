@@ -6,6 +6,7 @@ use crate::render_commands;
 use crate::collision;
 use crate::input::{*, InputState};
 use crate::player;
+use crate::resource_manager;
 
 enum States {
     Start,
@@ -34,7 +35,7 @@ impl GameState {
         let current_time = std::time::SystemTime::now();
 
         let camera = camera::Camera::new(
-            (0.0, 0.0, -4.0).into(),
+            (0.0, 1.0, -4.0).into(),
             (0.0, 0.0, 0.0).into(),
             glam::f32::Vec3::Y,
             16.0 / 9.0,
@@ -50,7 +51,7 @@ impl GameState {
         Self { current_state: States::Start, delta_time: 0.0, tick_time: 0.0, current_tick: 0, current_time, camera, render_commands: Vec::new(), sphere, capsule, player }
     }
 
-    pub fn update(&mut self, inputs: &mut HashMap<ScanCode, InputState>) {
+    pub fn update(&mut self, inputs: &mut Inputs, resource_manager: &resource_manager::ResourceManager) {
 
         self.delta_time = self.current_time.elapsed().unwrap().as_micros() as f32 / 1000.0;
         self.tick_time += self.delta_time;
@@ -58,18 +59,10 @@ impl GameState {
         while self.tick_time >= TICK_RATE {
             self.tick_time -= TICK_RATE;
             self.begin_tick();
-            self.tick(inputs);
+            self.tick(inputs, resource_manager);
             self.end_tick();
             self.current_tick += 1;
-            for (_, input_state) in inputs.iter_mut() {
-
-                if *input_state == InputState::JustPressed {
-                    *input_state = InputState::Held;
-                }
-                if *input_state == InputState::JustReleased {
-                    *input_state = InputState::Released;
-                }
-            }
+            inputs.end_tick_clean();
         }
     }
 
@@ -78,7 +71,7 @@ impl GameState {
         self.render_commands.clear();
     }
 
-    fn tick(&mut self, inputs: &mut HashMap<ScanCode, InputState>) {
+    fn tick(&mut self, inputs: &mut Inputs, resource_manager: &resource_manager::ResourceManager) {
 
         match self.current_state {
             States::Start => {
@@ -86,7 +79,37 @@ impl GameState {
             },
         }
 
+        let mut input_vector = glam::f32::Vec3::ZERO;
+        if inputs.check_key_down(RIGHT) {
+            input_vector += glam::f32::Vec3::X;
+        }
+        if inputs.check_key_down(LEFT) {
+            input_vector += glam::f32::Vec3::NEG_X;
+        }
+        if inputs.check_key_down(FORWARD) {
+            input_vector += glam::f32::Vec3::Z;
+        }
+        if inputs.check_key_down(BACKWARD) {
+            input_vector += glam::f32::Vec3::NEG_Z;
+        }
+        if inputs.check_key_down(UP) {
+            input_vector += glam::f32::Vec3::Y;
+        }
+        if inputs.check_key_down(DOWN) {
+            input_vector += glam::f32::Vec3::NEG_Y;
+        }
+        self.player.input(inputs);
+        self.player.translate_relative(input_vector * TICK_RATE_SECONDS * 4.0);
+
+        let t = self.capsule.vs_while_moving_triangle_soup(&(input_vector * TICK_RATE_SECONDS * 2.0), resource_manager.get_model(&"triangle".to_string()).unwrap().get_collision());
+        self.capsule.set_center(self.player.get_position());
+        if t.collided {
+            println!("Collision on tick {}", self.current_tick);
+        }
+
+        self.camera.update_from_player(&self.player);
         self.render_commands.push(render_commands::RenderCommands::Camera(self.camera.build_projection_matrix().to_cols_array_2d()));
+
         //T * R * S
         {
             let rotation = glam::f32::Mat4::from_euler(glam::EulerRot::XYZ, self.current_tick as f32 / 10.0, self.current_tick as f32 / 10.0, 0.0);
@@ -101,32 +124,11 @@ impl GameState {
             self.render_commands.push(render_commands::RenderCommands::Model(transform, "cube".to_string(), "tree".to_string()));
         }
 
+        self.render_commands.push(render_commands::RenderCommands::Model(glam::f32::Mat4::IDENTITY, "triangle".to_string(), "debug".to_string()));
+
         self.sphere.render(&mut self.render_commands);
 
-        let mut input_vector = glam::f32::Vec3::ZERO;
-        if check_key_down(inputs, RIGHT) {
-            input_vector += glam::f32::Vec3::X;
-        }
-        if check_key_down(inputs, LEFT) {
-            input_vector += glam::f32::Vec3::NEG_X;
-        }
-        if check_key_down(inputs, FORWARD) {
-            input_vector += glam::f32::Vec3::Z;
-        }
-        if check_key_down(inputs, BACKWARD) {
-            input_vector += glam::f32::Vec3::NEG_Z;
-        }
-        self.player.translate(input_vector * TICK_RATE_SECONDS * 2.0);
-        self.capsule.set_center(self.player.get_position());
         self.capsule.render(&mut self.render_commands);
-
-        let t = self.sphere.vs_capsule(&self.capsule);
-        if t.collided {
-            println!("Collision");
-        }
-        else {
-            println!("No collision");
-        }
     }
 
     fn end_tick(&mut self) {

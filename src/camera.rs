@@ -1,3 +1,5 @@
+use crate::player::Player;
+
 pub struct Camera {
     eye: glam::f32::Vec3,
     target: glam::f32::Vec3,
@@ -21,5 +23,22 @@ impl Camera {
         let projection = glam::f32::Mat4::perspective_lh(self.fov_y, self.aspect_ratio, self.z_near, self.z_far);
 
         return projection * view;
+    }
+
+    pub fn set_position(&mut self, position: glam::f32::Vec3) {
+
+        self.eye = position;
+    }
+
+    pub fn set_rotation(&mut self, yaw: f32, pitch: f32) {
+
+        
+    }
+
+    pub fn update_from_player(&mut self, player: &Player) {
+
+        self.eye = player.get_position();
+
+        self.target = self.eye + *player.get_forward();
     }
 }
