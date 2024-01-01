@@ -1,7 +1,7 @@
 use winit::window::Window;
 use wgpu::util::DeviceExt;
-use std::rc::Rc;
 
+use crate::quad_renderer;
 use crate::resource_manager;
 use crate::texture;
 use crate::render_commands::{RenderCommands, RenderTransform};
@@ -19,6 +19,7 @@ pub struct RenderState {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     render_transforms: Vec<RenderTransform>,
+    quad_renderer: quad_renderer::QuadRenderer,
 }
 
 impl RenderState {
@@ -168,6 +169,9 @@ impl RenderState {
 
         let render_transforms = Vec::new();
 
+        //Quad renderer
+        let quad_renderer = quad_renderer::QuadRenderer::new(&device, &config.format);
+
         Self {
             window,
             surface,
@@ -180,6 +184,7 @@ impl RenderState {
             camera_buffer,
             camera_bind_group,
             render_transforms,
+            quad_renderer,
         }
     }
 
@@ -213,6 +218,7 @@ impl RenderState {
     //Do not parallelize this function or the rendering calls, render order is required for transform to stay correct
     pub fn update_transforms(&mut self, render_commands: &Vec<RenderCommands>) {
         //Have to do this before render or else the borrow checker gets mad 
+        self.quad_renderer.clear_triangles();
         let mut render_transform_index = 0;
         for render_command in render_commands {
             match render_command {
@@ -225,10 +231,14 @@ impl RenderState {
                     }
                     render_transform_index += 1;
                 },
+                RenderCommands::Quad(top_left, bottom_right, _) => {
+                    self.quad_renderer.render_quad_aspect_corrected(*top_left, *bottom_right);
+                },
                 _ => (),
             }
         }
         self.render_transforms.drain(render_transform_index..);
+        self.quad_renderer.generate_vertex_buffer(&self.device);
     }
 
     pub fn render(&mut self, render_commands: &Vec<RenderCommands>, resource_manager: &resource_manager::ResourceManager) -> Result<(), wgpu::SurfaceError> {
@@ -289,6 +299,38 @@ impl RenderState {
                         render_pass.draw_indexed(0..model.unwrap().get_indices_count(), 0, 0..1);
 
                         render_transform_index += 1;
+                    },
+                    _ => (),
+                }
+            }
+        }
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+
+            render_pass.set_pipeline(&self.quad_renderer.get_render_pipeline());
+            let mut offset = 0;
+            for render_command in render_commands {
+                match render_command {
+                    RenderCommands::Quad(_, _, texture_name) => {
+                        let texture = resource_manager.get_texture(texture_name);
+                        render_pass.set_bind_group(0, texture.unwrap().get_bind_group().unwrap(), &[]);
+                        render_pass.set_vertex_buffer(0, self.quad_renderer.get_vertex_buffer().slice(..));
+                        render_pass.draw(offset..(offset + 6), 0..1);
+                        offset += 6;
                     },
                     _ => (),
                 }

@@ -383,14 +383,14 @@ impl Capsule {
         triangle.vs_sphere(&Sphere::new(center, self.radius))
     }
 
-    pub fn vs_while_moving_triangle(&self, velocity: &glam::f32::Vec3, triangle: &Triangle) -> CollisionPacket {
+    pub fn vs_while_moving_triangle(&self, velocity: &glam::f32::Vec3, triangle: &Triangle) -> (CollisionPacket, String) {
+
+        let mut debug_string = "".to_string();
 
         let ray = Ray::new((self.base + self.tip) / 2.0, *velocity);
 
         let self_normal = (self.tip - self.base).normalize_or_zero();
         let self_line_end_offset = self_normal * self.radius;
-        let self_a = self.base + self_line_end_offset;
-        let self_b = self.tip - self_line_end_offset;
 
         let mut test_capsule = self.clone();
         //Test against triangle vertexes
@@ -399,12 +399,14 @@ impl Capsule {
         let base_1 = test_capsule.base;
         let mut best_collision_packet = ray.vs_capsule(&test_capsule);
 
+        debug_string.push_str(&format!("0 {:?}\n", best_collision_packet));
+
         test_capsule.set_center(triangle.vertex_1);
         let tip_2 = test_capsule.tip;
         let base_2 = test_capsule.base;
         let mut collision_packet = ray.vs_capsule(&test_capsule);
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("1 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -423,7 +425,7 @@ impl Capsule {
         let base_3 = test_capsule.base;
         collision_packet = ray.vs_capsule(&test_capsule);
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("2 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -444,7 +446,7 @@ impl Capsule {
         let point_c = tip_3 - self_normal * self.radius;
         collision_packet = ray.vs_capsule(&Capsule::new(point_b + test_capsule_direction, point_a - test_capsule_direction, self.radius));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("3 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -461,7 +463,7 @@ impl Capsule {
         test_capsule_direction = (tip_3 - tip_1).normalize_or_zero() * self.radius;
         collision_packet = ray.vs_capsule(&Capsule::new(point_c + test_capsule_direction, point_a - test_capsule_direction, self.radius));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("4 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -478,7 +480,7 @@ impl Capsule {
         test_capsule_direction = (tip_3 - tip_2).normalize_or_zero() * self.radius;
         collision_packet = ray.vs_capsule(&Capsule::new(point_c + test_capsule_direction, point_b - test_capsule_direction, self.radius));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("5 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -499,7 +501,7 @@ impl Capsule {
         let point_c_base = base_3 - self_normal * self.radius;
         collision_packet = ray.vs_capsule(&Capsule::new(point_b_base + test_capsule_direction, point_a_base - test_capsule_direction, self.radius));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("6 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -516,7 +518,7 @@ impl Capsule {
         test_capsule_direction = (base_3 - base_1).normalize_or_zero() * self.radius;
         collision_packet = ray.vs_capsule(&Capsule::new(point_c_base + test_capsule_direction, point_a_base - test_capsule_direction, self.radius));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("7 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -533,7 +535,7 @@ impl Capsule {
         test_capsule_direction = (base_3 - base_2).normalize_or_zero() * self.radius;
         collision_packet = ray.vs_capsule(&Capsule::new(point_c_base + test_capsule_direction, point_b_base - test_capsule_direction, self.radius));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("8 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -552,7 +554,7 @@ impl Capsule {
         let edge_1_normal = triangle_normal.cross(triangle.vertex_1 - triangle.vertex_0).normalize_or_zero();
         collision_packet = ray.vs_triangle(&Triangle::new(point_a + edge_1_normal * self.radius, point_b + edge_1_normal * self.radius, point_a_base + edge_1_normal * self.radius));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("9 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -567,7 +569,7 @@ impl Capsule {
         }
         collision_packet = ray.vs_triangle(&Triangle::new(point_a_base + edge_1_normal * self.radius, point_b_base + edge_1_normal * self.radius, point_b + edge_1_normal * self.radius));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("10 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -584,7 +586,7 @@ impl Capsule {
         let edge_2_normal = triangle_normal.cross(triangle.vertex_2 - triangle.vertex_0).normalize_or_zero();
         collision_packet = ray.vs_triangle(&Triangle::new(point_a + edge_2_normal * self.radius, point_c + edge_2_normal * self.radius, point_a_base + edge_2_normal * self.radius));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("11 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -599,7 +601,7 @@ impl Capsule {
         }
         collision_packet = ray.vs_triangle(&Triangle::new(point_a_base + edge_2_normal * self.radius, point_c_base + edge_2_normal * self.radius, point_c + edge_2_normal * self.radius));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("12 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -616,7 +618,7 @@ impl Capsule {
         let edge_3_normal = triangle_normal.cross(triangle.vertex_2 - triangle.vertex_1).normalize_or_zero();
         collision_packet = ray.vs_triangle(&Triangle::new(point_b + edge_3_normal * self.radius, point_c + edge_3_normal * self.radius, point_b_base + edge_3_normal * self.radius));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("13 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -631,7 +633,7 @@ impl Capsule {
         }
         collision_packet = ray.vs_triangle(&Triangle::new(point_b_base + edge_3_normal * self.radius, point_c_base + edge_3_normal * self.radius, point_c + edge_3_normal * self.radius));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("14 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -648,7 +650,7 @@ impl Capsule {
         //Front face
         collision_packet = ray.vs_triangle(&Triangle::new(tip_1, tip_2, tip_3));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("15 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -665,7 +667,7 @@ impl Capsule {
         //Back face
         collision_packet = ray.vs_triangle(&Triangle::new(base_1, base_3, base_2));
         if collision_packet.collided {
-
+            debug_string.push_str(&format!("16 {:?}\n", collision_packet));
             if best_collision_packet.collided {
 
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
@@ -679,10 +681,12 @@ impl Capsule {
             }
         }
 
-        best_collision_packet
+        best_collision_packet.collided &= best_collision_packet.penetration_or_time.abs() < 1.0;
+
+        (best_collision_packet, debug_string)
     }
 
-    pub fn vs_while_moving_triangle_soup(&self, velocity: &glam::f32::Vec3, triangle_soup: &TriangleSoup) -> CollisionPacket {
+    pub fn vs_while_moving_triangle_soup(&self, velocity: &glam::f32::Vec3, triangle_soup: &TriangleSoup) -> (CollisionPacket, String) {
 
         triangle_soup.vs_moving_capsule(self, velocity)
     }
@@ -759,7 +763,7 @@ impl Triangle {
         sphere.vs_while_moving_triangle(velocity, self)
     }
 
-    pub fn vs_moving_capsule(&self, capsule: &Capsule, velocity: &glam::f32::Vec3) -> CollisionPacket {
+    pub fn vs_moving_capsule(&self, capsule: &Capsule, velocity: &glam::f32::Vec3) -> (CollisionPacket, String) {
 
         capsule.vs_while_moving_triangle(velocity, self)
     }
@@ -845,21 +849,24 @@ impl TriangleSoup {
         best_collision_packet
     }
 
-    pub fn vs_moving_capsule(&self, capsule: &Capsule, velocity: &glam::f32::Vec3) -> CollisionPacket {
+    pub fn vs_moving_capsule(&self, capsule: &Capsule, velocity: &glam::f32::Vec3) -> (CollisionPacket, String) {
 
         let mut best_collision_packet = CollisionPacket { collided: false, position: glam::f32::Vec3::ZERO, normal: glam::f32::Vec3::Y, penetration_or_time: f32::MAX };
 
+        let mut best_st = "".to_string();
+
         for i in 0..self.triangles.len() {
 
-            let collision_packet = capsule.vs_while_moving_triangle(velocity, &self.triangles[i]);
+            let (collision_packet, st) = capsule.vs_while_moving_triangle(velocity, &self.triangles[i]);
             if collision_packet.collided {
                 if collision_packet.penetration_or_time < best_collision_packet.penetration_or_time {
                     best_collision_packet = collision_packet;
+                    best_st = st;
                 }
             }
         }
 
-        best_collision_packet
+        (best_collision_packet, best_st)
     }
 }
 
@@ -1003,7 +1010,7 @@ impl Ray {
         let v = self.direction.dot(qvec) * inv_det;
         if v < 0.0 || u + v > 1.0 {
 
-            CollisionPacket { collided: false, position: glam::f32::Vec3::ZERO, normal: glam::f32::Vec3::Y, penetration_or_time: 0.0 };
+            return CollisionPacket { collided: false, position: glam::f32::Vec3::ZERO, normal: glam::f32::Vec3::Y, penetration_or_time: 0.0 };
         }
 
         let t = v0v2.dot(qvec) * inv_det;

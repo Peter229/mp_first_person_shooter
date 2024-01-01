@@ -16,6 +16,7 @@ mod resource_manager;
 mod player;
 mod collision;
 mod input;
+mod quad_renderer;
 
 use crate::input::InputState;
 
@@ -37,6 +38,7 @@ fn main() {
     resource_manager.load_model(render_state.get_device(), "./assets/capsule.glb", "capsule", false);
     resource_manager.load_model(render_state.get_device(), "./assets/cylinder.glb", "cylinder", false);
     resource_manager.load_model(render_state.get_device(), "./assets/test_triangle.glb", "triangle", true);
+    resource_manager.load_texture(render_state.get_device(), render_state.get_queue(), "./assets/dot_crosshair.png", "crosshair");
     resource_manager.load_texture(render_state.get_device(), render_state.get_queue(), "./assets/tree.jpg", "tree");
     resource_manager.load_texture(render_state.get_device(), render_state.get_queue(), "./assets/debug.png", "debug");
 

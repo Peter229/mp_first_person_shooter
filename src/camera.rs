@@ -37,7 +37,7 @@ impl Camera {
 
     pub fn update_from_player(&mut self, player: &Player) {
 
-        self.eye = player.get_position();
+        self.eye = *player.get_position();
 
         self.target = self.eye + *player.get_forward();
     }

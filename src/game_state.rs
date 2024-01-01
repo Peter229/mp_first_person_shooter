@@ -26,6 +26,8 @@ pub struct GameState {
     sphere: collision::Sphere,
     capsule: collision::Capsule,
     player: player::Player,
+    hit_areas: Vec<collision::Sphere>,
+
 }
 
 impl GameState {
@@ -45,10 +47,10 @@ impl GameState {
         );
 
         let sphere = collision::Sphere::new(glam::f32::Vec3::new(-2.0, 0.0, 0.0), 1.0);
-        let capsule = collision::Capsule::new(glam::f32::Vec3::new(0.0, -2.0, 0.0), glam::f32::Vec3::new(0.0, 2.0, 0.0), 1.0);
-        let player = player::Player::new(glam::f32::Vec3::ZERO);
+        let capsule = collision::Capsule::new(glam::f32::Vec3::new(0.0, -2.0, 2.0), glam::f32::Vec3::new(0.0, 2.0, 2.0), 1.0);
+        let player = player::Player::new(glam::f32::Vec3::new(0.0, 0.0, -4.0));
 
-        Self { current_state: States::Start, delta_time: 0.0, tick_time: 0.0, current_tick: 0, current_time, camera, render_commands: Vec::new(), sphere, capsule, player }
+        Self { current_state: States::Start, delta_time: 0.0, tick_time: 0.0, current_tick: 0, current_time, camera, render_commands: Vec::new(), sphere, capsule, player, hit_areas: Vec::new() }
     }
 
     pub fn update(&mut self, inputs: &mut Inputs, resource_manager: &resource_manager::ResourceManager) {
@@ -101,11 +103,23 @@ impl GameState {
         self.player.input(inputs);
         self.player.translate_relative(input_vector * TICK_RATE_SECONDS * 4.0);
 
-        let t = self.capsule.vs_while_moving_triangle_soup(&(input_vector * TICK_RATE_SECONDS * 2.0), resource_manager.get_model(&"triangle".to_string()).unwrap().get_collision());
-        self.capsule.set_center(self.player.get_position());
+        let (t, d) = self.capsule.vs_while_moving_triangle_soup(&(input_vector * TICK_RATE_SECONDS * 2.0), resource_manager.get_model(&"triangle".to_string()).unwrap().get_collision());
+        self.capsule.set_center(*self.player.get_position());
         if t.collided {
-            println!("Collision on tick {}", self.current_tick);
+            println!("Collision on tick {} at {}", self.current_tick, d);
         }
+
+        if inputs.check_mouse_just_pressed(1) {
+
+            
+            let (col_packet, t) = resource_manager.get_model(&"triangle".to_string()).unwrap().get_collision().vs_moving_capsule(&self.capsule, &(*self.player.get_forward() * 200.0));
+            if col_packet.collided {
+                let sphere = collision::Sphere::new(col_packet.position, 0.2);
+                self.hit_areas.push(sphere);
+            }
+        }
+
+        //Render area of game
 
         self.camera.update_from_player(&self.player);
         self.render_commands.push(render_commands::RenderCommands::Camera(self.camera.build_projection_matrix().to_cols_array_2d()));
@@ -129,6 +143,12 @@ impl GameState {
         self.sphere.render(&mut self.render_commands);
 
         self.capsule.render(&mut self.render_commands);
+
+        for sphere in &self.hit_areas {
+            sphere.render(&mut self.render_commands);
+        }
+
+        self.render_commands.push(render_commands::RenderCommands::Quad(glam::f32::Vec3::new(-0.005, -0.005, 0.0), glam::f32::Vec3::new(0.005, 0.005, 0.0), "crosshair".to_string()));
     }
 
     fn end_tick(&mut self) {

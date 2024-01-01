@@ -3,6 +3,7 @@ use wgpu::util::DeviceExt;
 pub enum RenderCommands {
     Camera([[f32; 4]; 4]),
     Model(glam::f32::Mat4, String, String),
+    Quad(glam::f32::Vec3, glam::f32::Vec3, String),
 }
 
 pub struct RenderTransform {

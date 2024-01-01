@@ -9,10 +9,6 @@ pub enum InputState {
     Released,
 }
 
-pub fn check_key_down(inputs: &mut HashMap<winit::event::ScanCode, InputState>, key: winit::event::ScanCode) -> bool {
-    inputs.get(&key).is_some_and(|input| *input == InputState::JustPressed || *input == InputState::Held)
-}
-
 pub const FORWARD: winit::event::ScanCode = 17;
 pub const LEFT: winit::event::ScanCode = 30;
 pub const BACKWARD: winit::event::ScanCode = 31;
@@ -121,5 +117,15 @@ impl Inputs {
     pub fn check_key_down(&self, key: ScanCode) -> bool {
 
         self.keyboard_inputs.get(&key).is_some_and(|input| *input == InputState::JustPressed || *input == InputState::Held)
+    }
+
+    pub fn check_mouse_down(&self, key: ScanCode) -> bool {
+
+        self.mouse_buttons.get(&key).is_some_and(|input| *input == InputState::JustPressed || *input == InputState::Held)
+    }
+
+    pub fn check_mouse_just_pressed(&self, key: ScanCode) -> bool {
+
+        self.mouse_buttons.get(&key).is_some_and(|input| *input == InputState::JustPressed)
     }
 }
