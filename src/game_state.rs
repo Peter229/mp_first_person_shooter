@@ -1,10 +1,7 @@
-use winit::event::ScanCode;
-use std::collections::HashMap;
-
 use crate::camera;
 use crate::render_commands;
 use crate::collision;
-use crate::input::{*, InputState};
+use crate::input::*;
 use crate::player;
 use crate::resource_manager;
 
@@ -103,24 +100,15 @@ impl GameState {
         self.player.input(inputs);
         self.player.translate_relative(input_vector * TICK_RATE_SECONDS * 4.0);
 
-        let (t, d) = self.capsule.vs_while_moving_triangle_soup(&(input_vector * TICK_RATE_SECONDS * 2.0), resource_manager.get_model(&"triangle".to_string()).unwrap().get_collision());
+        self.render_commands.push(render_commands::RenderCommands::Camera(self.camera.build_projection_matrix().to_cols_array_2d()));
+
+        let t = self.capsule.vs_while_moving_triangle_soup(&(input_vector * TICK_RATE_SECONDS * 2.0), resource_manager.get_model(&"triangle".to_string()).unwrap().get_collision());
         self.capsule.set_center(*self.player.get_position());
         if t.collided {
-            println!("Collision on tick {} at {}", self.current_tick, d);
-        }
-
-        if inputs.check_mouse_just_pressed(1) {
-
-            
-            let (col_packet, t) = resource_manager.get_model(&"triangle".to_string()).unwrap().get_collision().vs_moving_capsule(&self.capsule, &(*self.player.get_forward() * 200.0));
-            if col_packet.collided {
-                let sphere = collision::Sphere::new(col_packet.position, 0.2);
-                self.hit_areas.push(sphere);
-            }
+            println!("Collision on tick {}", self.current_tick);
         }
 
         //Render area of game
-
         self.camera.update_from_player(&self.player);
         self.render_commands.push(render_commands::RenderCommands::Camera(self.camera.build_projection_matrix().to_cols_array_2d()));
 
