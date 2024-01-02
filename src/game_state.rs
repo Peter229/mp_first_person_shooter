@@ -1,3 +1,5 @@
+use std::f32::EPSILON;
+
 use crate::camera;
 use crate::render_commands;
 use crate::collision;
@@ -44,7 +46,7 @@ impl GameState {
         );
 
         let sphere = collision::Sphere::new(glam::f32::Vec3::new(-2.0, 0.0, 0.0), 1.0);
-        let capsule = collision::Capsule::new(glam::f32::Vec3::new(0.0, -2.0, 2.0), glam::f32::Vec3::new(0.0, 2.0, 2.0), 1.0);
+        let capsule = collision::Capsule::new(glam::f32::Vec3::new(0.0, 1.0, 0.0), glam::f32::Vec3::new(0.0, 5.0, 0.0), 1.0);
         let player = player::Player::new(glam::f32::Vec3::new(0.0, 0.0, -4.0));
 
         Self { current_state: States::Start, delta_time: 0.0, tick_time: 0.0, current_tick: 0, current_time, camera, render_commands: Vec::new(), sphere, capsule, player, hit_areas: Vec::new() }
@@ -100,12 +102,10 @@ impl GameState {
         self.player.input(inputs);
         self.player.translate_relative(input_vector * TICK_RATE_SECONDS * 4.0);
 
-        self.render_commands.push(render_commands::RenderCommands::Camera(self.camera.build_projection_matrix().to_cols_array_2d()));
-
-        let t = self.capsule.vs_while_moving_triangle_soup(&(input_vector * TICK_RATE_SECONDS * 2.0), resource_manager.get_model(&"triangle".to_string()).unwrap().get_collision());
-        self.capsule.set_center(*self.player.get_position());
+        let t = self.capsule.vs_while_moving_triangle_soup(&(glam::f32::Vec3::NEG_Y * 2.0), resource_manager.get_model(&"triangle".to_string()).unwrap().get_collision());
         if t.collided {
-            println!("Collision on tick {}", self.current_tick);
+            self.capsule.set_center(self.capsule.get_center() + (glam::f32::Vec3::NEG_Y * 2.0) * t.penetration_or_time + t.normal * std::f32::EPSILON);
+            //println!("Collision on tick {}", self.current_tick);
         }
 
         //Render area of game

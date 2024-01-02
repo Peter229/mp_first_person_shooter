@@ -701,6 +701,11 @@ impl Capsule {
         self.tip += translation;
     }
 
+    pub fn get_center(&self) -> glam::f32::Vec3 {
+
+        (self.base + self.tip) / 2.0
+    }
+
     pub fn render(&self, render_commands: &mut Vec<render_commands::RenderCommands>) {
 
         let up = (self.tip - self.base).normalize_or_zero();
