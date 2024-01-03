@@ -1,5 +1,3 @@
-use std::f32::EPSILON;
-
 use crate::camera;
 use crate::render_commands;
 use crate::collision;

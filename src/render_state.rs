@@ -282,12 +282,18 @@ impl RenderState {
             let mut render_transform_index = 0;
 
             render_pass.set_pipeline(&self.render_pipeline);
+            //Force do camera first
             for render_command in render_commands {
                 match render_command {
                     RenderCommands::Camera(matrix) => {
                         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(matrix));
                         render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
                     },
+                    _ => (),
+                }
+            }
+            for render_command in render_commands {
+                match render_command {
                     RenderCommands::Model(transform, model_name, texture_name) => {
                         let model = resource_manager.get_model(model_name);
                         let texture = resource_manager.get_texture(texture_name);

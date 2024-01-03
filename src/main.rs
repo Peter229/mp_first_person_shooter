@@ -3,7 +3,6 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-use std::collections::HashMap;
 
 mod render_state;
 mod texture;
@@ -17,8 +16,6 @@ mod player;
 mod collision;
 mod input;
 mod quad_renderer;
-
-use crate::input::InputState;
 
 fn main() {
     env_logger::init();

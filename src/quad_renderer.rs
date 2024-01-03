@@ -1,7 +1,6 @@
 use wgpu::util::DeviceExt;
 
 use crate::gpu_types;
-use crate::gpu_types::QuadVertex;
 use crate::texture;
 
 pub struct QuadRenderer {

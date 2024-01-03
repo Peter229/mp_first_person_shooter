@@ -1,4 +1,3 @@
-use gltf::mesh::util::indices;
 use wgpu::util::DeviceExt;
 
 use crate::gpu_types;
@@ -97,8 +96,12 @@ impl Model {
     
     pub fn generate_triangle_soup(vertices: &Vec<[f32; 3]>, indices: &Vec<u32>) -> collision::TriangleSoup {
 
-        collision::TriangleSoup::new(indices.into_iter().step_by(3).map(|index| 
-            collision::Triangle::new(vertices[*index as usize].into(), vertices[*index as usize + 1].into(), vertices[*index as usize + 2].into())).collect())
+        let mut triangles = Vec::new();
+        for i in (0..indices.len()).step_by(3) {
+
+            triangles.push(collision::Triangle::new(vertices[indices[i] as usize].into(), vertices[indices[i + 1] as usize].into(), vertices[indices[i + 2] as usize].into()));
+        }
+        collision::TriangleSoup::new(triangles)
     }
 
     pub fn get_collision(&self) -> &collision::TriangleSoup {
