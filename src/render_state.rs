@@ -188,7 +188,7 @@ impl RenderState {
         }
     }
 
-    pub fn window(&self) -> &Window {
+    pub fn get_window(&self) -> &Window {
         &self.window
     }
 
@@ -202,6 +202,10 @@ impl RenderState {
 
     pub fn get_size(&self) -> winit::dpi::PhysicalSize<u32> {
         self.size
+    }
+
+    pub fn get_config(&self) -> &wgpu::SurfaceConfiguration {
+        &self.config
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -241,7 +245,7 @@ impl RenderState {
         self.quad_renderer.generate_vertex_buffer(&self.device);
     }
 
-    pub fn render(&mut self, render_commands: &Vec<RenderCommands>, resource_manager: &resource_manager::ResourceManager) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&mut self, render_commands: &Vec<RenderCommands>, resource_manager: &resource_manager::ResourceManager, renderer: &mut egui_wgpu::Renderer, egui_ctx: &egui::Context, paint_jobs: &Vec<egui::ClippedPrimitive>, ppp: f32, texture_deltas: &egui::TexturesDelta) -> Result<(), wgpu::SurfaceError> {
 
         let output = self.surface.get_current_texture()?;
 
@@ -342,6 +346,43 @@ impl RenderState {
                 }
             }
         }
+
+        //EGUI
+
+        let screen_descriptor = egui_wgpu::renderer::ScreenDescriptor {
+            size_in_pixels: [self.config.width, self.config.height],
+            pixels_per_point: ppp,
+        };
+
+        renderer.update_buffers(&self.device, &self.queue, &mut encoder, &paint_jobs, &screen_descriptor);
+
+        for (tex_id, img_delta) in &texture_deltas.set {
+            renderer.update_texture(&self.device, &self.queue, *tex_id, img_delta);
+        }
+
+        for tex_id in &texture_deltas.free {
+            renderer.free_texture(tex_id);
+        }
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("EGUI Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+
+            renderer.render(&mut render_pass, paint_jobs, &screen_descriptor);
+        }
+        //
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();

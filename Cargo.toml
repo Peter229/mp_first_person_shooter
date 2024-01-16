@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 image = "0.24"
-winit = "0.28"
+winit = "0.29.4"
 env_logger = "0.10"
 log = "0.4"
 bytemuck = { version = "1.14", features = [ "derive" ] }
@@ -16,4 +16,8 @@ wgpu = "0.18"
 pollster = "0.3"
 anyhow = "1.0"
 gltf = "1.4.0"
+egui-winit = "0.25"
+egui-wgpu = "0.25"
+egui = "0.25"
+postcard = "1.0.8"
 serde = { version = "1.0.193", features = ["derive"] }
