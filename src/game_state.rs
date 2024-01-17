@@ -45,7 +45,7 @@ impl GameState {
 
         let sphere = collision::Sphere::new(glam::f32::Vec3::new(-2.0, 0.0, 0.0), 1.0);
         let capsule = collision::Capsule::new(glam::f32::Vec3::new(0.0, 1.0, 0.0), glam::f32::Vec3::new(0.0, 5.0, 0.0), 1.0);
-        let player = player::Player::new(glam::f32::Vec3::new(0.0, 0.0, -4.0));
+        let player = player::Player::new(glam::f32::Vec3::new(0.0, 1.0, -4.0), 90.0_f32.to_radians());
 
         Self { current_state: States::Start, delta_time: 0.0, tick_time: 0.0, current_tick: 0, current_time, camera, render_commands: Vec::new(), sphere, capsule, player, hit_areas: Vec::new() }
     }
@@ -100,7 +100,7 @@ impl GameState {
         self.player.input(inputs);
         self.player.translate_relative(input_vector * TICK_RATE_SECONDS * 4.0);
 
-        let t = self.capsule.vs_while_moving_triangle_soup(&(glam::f32::Vec3::NEG_Y * 2.0), resource_manager.get_model(&"triangle".to_string()).unwrap().get_collision());
+        let t = self.capsule.vs_while_moving_triangle_soup(&(glam::f32::Vec3::NEG_Y * 2.0), resource_manager.get_model(&"test_triangle".to_string()).unwrap().get_collision());
         if t.collided {
             self.capsule.set_center(self.capsule.get_center() + (glam::f32::Vec3::NEG_Y * 2.0) * t.penetration_or_time + t.normal * std::f32::EPSILON);
             //println!("Collision on tick {}", self.current_tick);
@@ -124,7 +124,7 @@ impl GameState {
             self.render_commands.push(render_commands::RenderCommands::Model(transform, "cube".to_string(), "tree".to_string()));
         }
 
-        self.render_commands.push(render_commands::RenderCommands::Model(glam::f32::Mat4::IDENTITY, "triangle".to_string(), "debug".to_string()));
+        self.render_commands.push(render_commands::RenderCommands::Model(glam::f32::Mat4::IDENTITY, "test_triangle".to_string(), "debug".to_string()));
 
         self.sphere.render(&mut self.render_commands);
 
@@ -134,7 +134,7 @@ impl GameState {
             sphere.render(&mut self.render_commands);
         }
 
-        self.render_commands.push(render_commands::RenderCommands::Quad(glam::f32::Vec3::new(-0.005, -0.005, 0.0), glam::f32::Vec3::new(0.005, 0.005, 0.0), "crosshair".to_string()));
+        self.render_commands.push(render_commands::RenderCommands::Quad(glam::f32::Vec3::new(-0.005, -0.005, 0.0), glam::f32::Vec3::new(0.005, 0.005, 0.0), "dot_crosshair".to_string()));
     }
 
     fn end_tick(&mut self) {
@@ -145,5 +145,9 @@ impl GameState {
     pub fn get_render_commands(&self) -> &Vec<render_commands::RenderCommands> {
         
         &self.render_commands
+    }
+
+    pub fn get_delta_time(&self) -> f32 {
+        self.delta_time
     }
 }

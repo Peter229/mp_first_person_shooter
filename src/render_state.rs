@@ -245,7 +245,7 @@ impl RenderState {
         self.quad_renderer.generate_vertex_buffer(&self.device);
     }
 
-    pub fn render(&mut self, render_commands: &Vec<RenderCommands>, resource_manager: &resource_manager::ResourceManager, renderer: &mut egui_wgpu::Renderer, egui_ctx: &egui::Context, paint_jobs: &Vec<egui::ClippedPrimitive>, ppp: f32, texture_deltas: &egui::TexturesDelta) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&mut self, render_commands: &Vec<RenderCommands>, resource_manager: &resource_manager::ResourceManager, renderer: &mut egui_wgpu::Renderer, paint_jobs: &Vec<egui::ClippedPrimitive>, ppp: f32, texture_deltas: &egui::TexturesDelta) -> Result<(), wgpu::SurfaceError> {
 
         let output = self.surface.get_current_texture()?;
 

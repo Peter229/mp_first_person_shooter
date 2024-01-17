@@ -1,4 +1,3 @@
-use egui::ClippedPrimitive;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -37,14 +36,7 @@ fn main() {
 
     let mut resource_manager = resource_manager::ResourceManager::new();
 
-    resource_manager.load_model(render_state.get_device(), "./assets/cube.glb", "cube", false);
-    resource_manager.load_model(render_state.get_device(), "./assets/sphere.glb", "sphere", false);
-    resource_manager.load_model(render_state.get_device(), "./assets/capsule.glb", "capsule", false);
-    resource_manager.load_model(render_state.get_device(), "./assets/cylinder.glb", "cylinder", false);
-    resource_manager.load_model(render_state.get_device(), "./assets/test_triangle.glb", "triangle", true);
-    resource_manager.load_texture(render_state.get_device(), render_state.get_queue(), "./assets/dot_crosshair.png", "crosshair");
-    resource_manager.load_texture(render_state.get_device(), render_state.get_queue(), "./assets/tree.jpg", "tree");
-    resource_manager.load_texture(render_state.get_device(), render_state.get_queue(), "./assets/debug.png", "debug");
+    let resource_load_time = resource_manager.bulk_load(render_state.get_device(), render_state.get_queue());
 
     let mut game_state = game_state::GameState::new();
 
@@ -53,8 +45,7 @@ fn main() {
 
 
     //EGUI
-
-    let mut egui_context = egui::Context::default();
+    let egui_context = egui::Context::default();
 
     let mut platform = egui_winit::State::new(egui_context.clone(), egui::ViewportId::ROOT, &event_loop, Some(render_state.get_window().scale_factor() as f32), None);
 
@@ -92,9 +83,16 @@ fn main() {
                         },
                     ..
                 } => {
-                    //window.set_cursor_grab(winit::window::CursorGrabMode::Confined).unwrap();
                     cursor_visible = !cursor_visible;
                     render_state.get_window().set_cursor_visible(cursor_visible);
+                    if cursor_visible {
+                        render_state.get_window().set_cursor_grab(winit::window::CursorGrabMode::None).unwrap();
+                        render_state.get_window().set_cursor_position(winit::dpi::LogicalPosition::new(render_state.get_config().width / 2, render_state.get_config().height / 2)).unwrap();
+                    }
+                    else
+                    {
+                        render_state.get_window().set_cursor_grab(winit::window::CursorGrabMode::Confined).unwrap();
+                    }
                 },
                 WindowEvent::Resized(physical_size) => { 
                     render_state.resize(*physical_size); 
@@ -111,18 +109,21 @@ fn main() {
                     //EGUI
                     let raw_input = platform.take_egui_input(render_state.get_window());
                     let full_output = egui_context.run(raw_input, |egui_context| {
-                        egui::Window::new("My Window").show(&egui_context, |ui| {
+                        egui::Window::new("Debug Stats").show(&egui_context, |ui| {
                             ui.label("Hello world");
                             if ui.button("Click me").clicked() {
                                 println!("hi");
                             }
+                            ui.label("Frame time: ".to_string() + &game_state.get_delta_time().to_string());
+                            ui.label("FPS: ".to_string() + &(1.0 / (game_state.get_delta_time() / 1000.0)).to_string());
+                            ui.label("Number of render commands: ".to_string() + &(game_state.get_render_commands().len().to_string()));
+                            ui.label("Resource manager load time in ms: ".to_string() + &resource_load_time.to_string());
                         });
                     });
                     platform.handle_platform_output(render_state.get_window(), full_output.platform_output);
                     let clipped_primitives = egui_context.tessellate(full_output.shapes, full_output.pixels_per_point);
 
-                    //END MY PAIN
-                    match render_state.render(game_state.get_render_commands(), &resource_manager, &mut renderer, &egui_context, &clipped_primitives, full_output.pixels_per_point, &full_output.textures_delta) {
+                    match render_state.render(game_state.get_render_commands(), &resource_manager, &mut renderer, &clipped_primitives, full_output.pixels_per_point, &full_output.textures_delta) {
                         Ok(_) => {}
                         Err(wgpu::SurfaceError::Lost) => render_state.resize(render_state.get_size()),
                         Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),

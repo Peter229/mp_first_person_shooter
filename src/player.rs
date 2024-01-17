@@ -11,9 +11,9 @@ pub struct Player {
 
 impl Player {
     
-    pub fn new(position: glam::f32::Vec3) -> Self {
+    pub fn new(position: glam::f32::Vec3, yaw: f32) -> Self {
 
-        Self { position, velocity: glam::f32::Vec3::ZERO, forward: glam::f32::Vec3::Z, right: glam::f32::Vec3::X, yaw: 0.0, pitch: 0.0 }
+        Self { position, velocity: glam::f32::Vec3::ZERO, forward: glam::f32::Vec3::Z, right: glam::f32::Vec3::X, yaw, pitch: 0.0 }
     }
 
     pub fn translate(&mut self, translation: glam::f32::Vec3) {
