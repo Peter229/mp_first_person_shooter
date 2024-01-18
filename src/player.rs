@@ -24,7 +24,7 @@ impl Player {
     pub fn translate_relative(&mut self, translation: glam::f32::Vec3) {
 
         self.position += translation.z * self.forward;
-        self.position += translation.x * glam::f32::Vec3::Y.cross(self.forward).normalize_or_zero();
+        self.position -= translation.x * glam::f32::Vec3::Y.cross(self.forward).normalize_or_zero();
     }
 
     pub fn get_position(&self) -> &glam::f32::Vec3 {
@@ -36,7 +36,7 @@ impl Player {
         
         let mouse_motion = inputs.get_mouse_motion();
 
-        self.yaw = (self.yaw - (mouse_motion[0] * MOUSE_SENSITIVITY)) % 360.0_f32.to_radians();
+        self.yaw = (self.yaw + (mouse_motion[0] * MOUSE_SENSITIVITY)) % 360.0_f32.to_radians();
 
         self.pitch = (self.pitch - (mouse_motion[1] * MOUSE_SENSITIVITY)).clamp(-89.0_f32.to_radians(), 89.0_f32.to_radians());
 

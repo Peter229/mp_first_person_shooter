@@ -1,6 +1,11 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::time::Instant;
+
 use winit::window::Window;
 use wgpu::util::DeviceExt;
 
+use crate::console::Console;
 use crate::quad_renderer;
 use crate::resource_manager;
 use crate::texture;
@@ -21,11 +26,12 @@ pub struct RenderState {
     camera_bind_group: wgpu::BindGroup,
     render_transforms: Vec<RenderTransform>,
     quad_renderer: quad_renderer::QuadRenderer,
+    console: Rc<RefCell<Console>>,
 }
 
 impl RenderState {
 
-    pub async fn new(window: Window) -> Self {
+    pub async fn new(window: Window, console: Rc<RefCell<Console>>) -> Self {
 
         let size = window.inner_size();
 
@@ -163,7 +169,7 @@ impl RenderState {
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
-                front_face: wgpu::FrontFace::Cw,
+                front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
                 polygon_mode: wgpu::PolygonMode::Fill,
                 unclipped_depth: false,
@@ -204,7 +210,7 @@ impl RenderState {
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
-                front_face: wgpu::FrontFace::Cw,
+                front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
                 polygon_mode: wgpu::PolygonMode::Fill,
                 unclipped_depth: false,
@@ -244,6 +250,7 @@ impl RenderState {
             camera_bind_group,
             render_transforms,
             quad_renderer,
+            console,
         }
     }
 
@@ -281,6 +288,7 @@ impl RenderState {
     //Do not parallelize this function or the rendering calls, render order is required for transform to stay correct
     pub fn update_transforms(&mut self, render_commands: &mut Vec<RenderCommands>) {
         //Have to do this before render or else the borrow checker gets mad 
+        let start = Instant::now();
         self.quad_renderer.clear_triangles();
         let mut render_transform_index = 0;
         for render_command in render_commands {
@@ -313,6 +321,9 @@ impl RenderState {
         }
         self.render_transforms.drain(render_transform_index..);
         self.quad_renderer.generate_vertex_buffer(&self.device);
+
+        let milli_time = start.elapsed().as_micros() as f32 / 1000.0;
+        self.console.borrow_mut().insert_timing("Renderer preprocess", milli_time);
     }
 
     pub fn render(&mut self, render_commands: &Vec<RenderCommands>, resource_manager: &resource_manager::ResourceManager, renderer: &mut egui_wgpu::Renderer, paint_jobs: &Vec<egui::ClippedPrimitive>, ppp: f32, texture_deltas: &egui::TexturesDelta) -> Result<(), wgpu::SurfaceError> {
@@ -324,6 +335,8 @@ impl RenderState {
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
+
+        let mut start = Instant::now();
 
         //Main scene render pass
         {
@@ -412,6 +425,10 @@ impl RenderState {
             }
         }
 
+        let mut milli_time = start.elapsed().as_micros() as f32 / 1000.0;
+        self.console.borrow_mut().insert_timing("Scene renderer", milli_time);
+        start = Instant::now();
+
         //Render pass for quads, used for crosshair atm
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -444,6 +461,10 @@ impl RenderState {
                 }
             }
         }
+
+        milli_time = start.elapsed().as_micros() as f32 / 1000.0;
+        self.console.borrow_mut().insert_timing("Quad renderer", milli_time);
+        start = Instant::now();
 
         //EGUI render pass
         {
@@ -479,6 +500,9 @@ impl RenderState {
 
             renderer.render(&mut render_pass, paint_jobs, &screen_descriptor);
         }
+
+        milli_time = start.elapsed().as_micros() as f32 / 1000.0;
+        self.console.borrow_mut().insert_timing("EGUI renderer", milli_time);
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();

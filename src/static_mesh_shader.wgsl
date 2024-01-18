@@ -35,7 +35,7 @@ var diffuse_sampler: sampler;
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     
-    let sun_direction = normalize(vec3<f32>(1.0, 1.0, -1.0));
+    let sun_direction = normalize(vec3<f32>(1.0, 1.0, 1.0));
     let sun_strength = max(dot(sun_direction, normalize(in.normal)), 0.0) + 0.1;
     let sun_colour = vec4<f32>(1.0, 1.0, 1.0, 1.0);
     let sun_light = sun_colour * sun_strength;

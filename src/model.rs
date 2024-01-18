@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::collections::HashMap;
 
 use wgpu::util::DeviceExt;
@@ -81,7 +80,6 @@ impl Model {
         let mut textures = Vec::new();
 
         for texture in document.textures() {
-            println!("Texture: {:?} with image: {:?}", texture.name(), texture.source().name());
             if texture.source().name().is_some() {
                 textures.push(String::from(texture.source().name().unwrap()));
             }
@@ -90,7 +88,6 @@ impl Model {
         let mut collision = None;
 
         if with_collision {
-
             collision = Some(Model::generate_triangle_soup(&vertices, &indices));
         }
 
@@ -148,6 +145,7 @@ pub struct SkeletonModel {
     joints: JointsUniform,
     joints_uniform_buffer: wgpu::Buffer, 
     joints_uniform_bind_group: wgpu::BindGroup,
+    animation_controller: AnimationController,
 }
 
 impl SkeletonModel {
@@ -233,7 +231,6 @@ impl SkeletonModel {
         let mut textures = Vec::new();
 
         for texture in document.textures() {
-            println!("Texture: {:?} with image: {:?}", texture.name(), texture.source().name());
             if texture.source().name().is_some() {
                 textures.push(String::from(texture.source().name().unwrap()));
             }
@@ -260,11 +257,13 @@ impl SkeletonModel {
             panic!("More than one skeleton, need to add compatibility for this");
         }
 
+        let mut animations = Vec::new();
+
         for animation in document.animations() {
 
             let animation_name = animation.name().unwrap_or("None");
 
-            println!("{}", animation_name);
+            animations.push(animation_name.to_string());
 
             for channel in animation.channels() {
 
@@ -344,7 +343,9 @@ impl SkeletonModel {
             label: Some("Joint uniform bind group"),
         });
 
-        Self { vertex_buffer, index_buffer, indices_count: indices.len() as u32, textures, skeleton: skeletons[0].clone(), joints, joints_uniform_buffer, joints_uniform_bind_group }
+        let animation_controller = AnimationController::new(animations);
+
+        Self { vertex_buffer, index_buffer, indices_count: indices.len() as u32, textures, skeleton: skeletons[0].clone(), joints, joints_uniform_buffer, joints_uniform_bind_group, animation_controller }
     }
 
     pub fn get_vertex_buffer(&self) -> &wgpu::Buffer {
@@ -366,7 +367,9 @@ impl SkeletonModel {
 
         let mut joints_temp = Vec::new();
 
-        self.skeleton.set_joints_to_pose(&mut joints_temp, "ArmatureAction", time / 2.0); //ArmatureAction
+        self.animation_controller.update_time(time / 10.0);
+
+        self.skeleton.set_joints_to_pose(&mut joints_temp, &self.animation_controller.get_current_animation(), self.animation_controller.time);
 
         for i in 0..self.skeleton.inverse_bind_matrices.len() {
 
@@ -382,6 +385,16 @@ impl SkeletonModel {
     pub fn get_joints_bind_group(&self) -> &wgpu::BindGroup {
 
         &self.joints_uniform_bind_group
+    }
+
+    pub fn get_animation_controller(&self) -> &AnimationController {
+
+        &self.animation_controller
+    }
+
+    pub fn get_mut_animation_controller(&mut self) -> &mut AnimationController {
+
+        &mut self.animation_controller
     }
 }
 
@@ -481,13 +494,54 @@ impl Bone {
         let r = self.animations_rotation.get(name).unwrap()[index].slerp(self.animations_rotation.get(name).unwrap()[next_index], lerp_amount);
         let s = self.animations_scale.get(name).unwrap()[index].lerp(self.animations_scale.get(name).unwrap()[next_index], lerp_amount);
 
-        println!("{}", depth);
-
         let mat = parent_matrix * glam::f32::Mat4::from_scale_rotation_translation(s, r, t);
 
         joints_temp.push(mat);
         for bone in &self.child_bones {
             bone.set_joints_to_pose(joints_temp, mat, name, time, depth + 1)
         }
+    }
+}
+
+pub struct AnimationController {
+
+    current_animation: String,
+    animations: Vec<String>,
+    time: f32,
+}
+
+impl AnimationController {
+
+    pub fn new(animations: Vec<String>) -> Self {
+
+        let current_animation = animations.get(0).unwrap_or(&"".to_string()).to_string();
+
+        Self { current_animation, animations, time: 0.0 }
+    }
+
+    pub fn get_animations(&self) -> &Vec<String> {
+
+        &self.animations
+    }
+
+    pub fn get_current_animation(&self) -> &String {
+
+        &self.current_animation
+    }
+
+    pub fn set_current_animation(&mut self, name: &str) {
+
+        if name.to_string() == self.current_animation {
+            return;
+        }
+
+        self.time = 0.0;
+        self.current_animation = name.to_string();
+    }
+
+    pub fn update_time(&mut self, delta: f32) {
+
+
+        self.time += delta;
     }
 }

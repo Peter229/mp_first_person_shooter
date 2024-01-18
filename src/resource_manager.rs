@@ -1,5 +1,8 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
+use crate::console::*;
 use crate::model;
 use crate::texture;
 
@@ -7,97 +10,92 @@ pub struct ResourceManager {
     models: HashMap<String, model::Model>,
     skeleton_models: HashMap<String, model::SkeletonModel>,
     textures: HashMap<String, texture::Texture>,
+    console: Rc<RefCell<Console>>,
 }
 
 impl ResourceManager {
 
-    pub fn new() -> Self {
+    pub fn new(console: Rc<RefCell<Console>>) -> Self {
         
-        Self { models: HashMap::new(), skeleton_models: HashMap::new(), textures: HashMap::new() }
+        Self { models: HashMap::new(), skeleton_models: HashMap::new(), textures: HashMap::new(), console }
     }
 
-    pub fn load_model(&mut self, device: &wgpu::Device, path: &str, with_collision: bool) -> f32 {
+    pub fn load_model(&mut self, device: &wgpu::Device, path: &str, with_collision: bool) {
 
         let start = std::time::Instant::now();
 
         let name = path.split("/").last().unwrap().split(".").nth(0).unwrap();
 
         if self.models.contains_key(name) {
-
-            eprintln!("Already loaded model: {} at {}", name, path);
+            self.console.borrow_mut().output_to_console(&format!("Already loaded model: {} at {}", name, path));
         }
         else {
-
-            println!("Now loading {} at path {}", name, path);
+            self.console.borrow_mut().output_to_console(&format!("Now loading {} at path {}", name, path));
             self.models.insert(name.to_string(), model::Model::new(device, path, with_collision));
         }
 
-        let milli_time = (start.elapsed().as_micros() as f32 / 1000.0);
-        milli_time
+        let milli_time = start.elapsed().as_micros() as f32 / 1000.0;
+        self.console.borrow_mut().output_to_console(&format!("{} took {}ms to load", name, milli_time));
     }
 
-    pub fn load_skeleton_model(&mut self, device: &wgpu::Device, path: &str) -> f32 {
+    pub fn load_skeleton_model(&mut self, device: &wgpu::Device, path: &str) {
 
         let start = std::time::Instant::now();
 
         let name = path.split("/").last().unwrap().split(".").nth(0).unwrap();
 
         if self.skeleton_models.contains_key(name) {
-
-            eprintln!("Already loaded skeleton model: {} at {}", name, path);
+            self.console.borrow_mut().output_to_console(&format!("Already loaded skeleton model: {} at {}", name, path));
         }
         else {
-
-            println!("Now loading {} at path {}", name, path);
+            self.console.borrow_mut().output_to_console(&format!("Now loading {} at path {}", name, path));
             self.skeleton_models.insert(name.to_string(), model::SkeletonModel::new(device, path));
         }
 
-        let milli_time = (start.elapsed().as_micros() as f32 / 1000.0);
-        milli_time
+        let milli_time = start.elapsed().as_micros() as f32 / 1000.0;
+        self.console.borrow_mut().output_to_console(&format!("{} took {}ms to load", name, milli_time));
     }
 
-    pub fn load_texture(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, path: &str) -> f32 {
+    pub fn load_texture(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, path: &str) {
         
         let start = std::time::Instant::now();
 
         let name = path.split("/").last().unwrap().split(".").nth(0).unwrap();
 
         if self.textures.contains_key(name) {
-
-            eprintln!("Already loaded texture: {} at {}", name, path);
+            self.console.borrow_mut().output_to_console(&format!("Already loaded texture: {} at {}", name, path));
         }
         else {
-            
-            println!("Now loading {} at path {}", name, path);
+            self.console.borrow_mut().output_to_console(&format!("Now loading {} at path {}", name, path));
             let diffuse_texture = texture::Texture::from_disk(&device, &queue, path, name).unwrap();
             self.textures.insert(name.to_string(), diffuse_texture);
         }
 
-        let milli_time = (start.elapsed().as_micros() as f32 / 1000.0);
-        milli_time
+        let milli_time = start.elapsed().as_micros() as f32 / 1000.0;
+        self.console.borrow_mut().output_to_console(&format!("{} took {}ms to load", name, milli_time));
     }
 
-    pub fn get_model(&self, name: &String) -> Option<&model::Model> {
+    pub fn get_model(&self, name: &str) -> Option<&model::Model> {
 
         self.models.get(name)
     }
 
-    pub fn get_skeleton_model(&self, name: &String) -> Option<&model::SkeletonModel> {
+    pub fn get_skeleton_model(&self, name: &str) -> Option<&model::SkeletonModel> {
 
         self.skeleton_models.get(name)
     }
 
-    pub fn get_mut_skeleton_model(&mut self, name: &String) -> Option<&mut model::SkeletonModel> {
+    pub fn get_mut_skeleton_model(&mut self, name: &str) -> Option<&mut model::SkeletonModel> {
 
         self.skeleton_models.get_mut(name)
     }
 
-    pub fn get_texture(&self, name: &String) -> Option<&texture::Texture> {
+    pub fn get_texture(&self, name: &str) -> Option<&texture::Texture> {
 
         self.textures.get(name)
     }
 
-    pub fn bulk_load(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) -> f32 {
+    pub fn bulk_load(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
 
         let start = std::time::Instant::now();
         
@@ -127,7 +125,7 @@ impl ResourceManager {
             }
         }
 
-        let milli_time = (start.elapsed().as_micros() as f32 / 1000.0);
-        milli_time
+        let milli_time = start.elapsed().as_micros() as f32 / 1000.0;
+        self.console.borrow_mut().output_to_console(&format!("Bulk load took {}ms to load", milli_time));
     }
 }

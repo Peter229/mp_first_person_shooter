@@ -19,8 +19,8 @@ impl Camera {
 
     pub fn build_projection_matrix(&self) -> glam::f32::Mat4 {
 
-        let view = glam::f32::Mat4::look_at_lh(self.eye, self.target, self.up);
-        let projection = glam::f32::Mat4::perspective_lh(self.fov_y, self.aspect_ratio, self.z_near, self.z_far);
+        let view = glam::f32::Mat4::look_at_rh(self.eye, self.target, self.up);
+        let projection = glam::f32::Mat4::perspective_rh(self.fov_y, self.aspect_ratio, self.z_near, self.z_far);
 
         return projection * view;
     }

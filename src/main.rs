@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -17,12 +19,16 @@ mod collision;
 mod input;
 mod quad_renderer;
 mod collision_world;
+mod console;
 
 //Look at cpal for audio
 
 fn main() {
     env_logger::init();
     
+    //I wish this and the resource manager could be global without unsafe 
+    let console = Rc::new(RefCell::new(console::Console::new()));
+
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new().with_title("mp_first_person_shooter").with_inner_size(winit::dpi::PhysicalSize::new(1280, 720)).build(&event_loop).unwrap();
 
@@ -32,13 +38,13 @@ fn main() {
     let mut cursor_visible = false;
     window.set_cursor_visible(cursor_visible);
 
-    let mut render_state = pollster::block_on(render_state::RenderState::new(window));
+    let mut render_state = pollster::block_on(render_state::RenderState::new(window, console.clone()));
 
-    let mut resource_manager = resource_manager::ResourceManager::new();
+    let mut resource_manager = resource_manager::ResourceManager::new(console.clone());
 
-    let resource_load_time = resource_manager.bulk_load(render_state.get_device(), render_state.get_queue());
+    resource_manager.bulk_load(render_state.get_device(), render_state.get_queue());
 
-    let mut game_state = game_state::GameState::new();
+    let mut game_state = game_state::GameState::new(console.clone());
 
     let mut inputs = input::Inputs::new();
 
@@ -51,6 +57,8 @@ fn main() {
 
     let mut renderer = egui_wgpu::Renderer::new(render_state.get_device(), render_state.get_config().format, None, 1);
     //EGUI
+
+    let mut console_text = "".to_string();
 
     event_loop.run(move |event, elwt| match event {
         Event::WindowEvent {
@@ -102,24 +110,41 @@ fn main() {
                 //    inner_size_writer.request_inner_size(render_state.get_size()).unwrap();
                 //}
                 WindowEvent::KeyboardInput { event, .. } => {
-                    inputs.keyboard_input(event);
+                    if !cursor_visible {
+                        inputs.keyboard_input(event);
+                    }
                 }
                 WindowEvent::RedrawRequested => {
 
                     //EGUI
+                    let mut selected = resource_manager.get_skeleton_model("Roll_Caskett").unwrap().get_animation_controller().get_current_animation().to_owned();
                     let raw_input = platform.take_egui_input(render_state.get_window());
                     let full_output = egui_context.run(raw_input, |egui_context| {
                         egui::Window::new("Debug Stats").show(&egui_context, |ui| {
-                            ui.label("Hello world");
-                            if ui.button("Click me").clicked() {
-                                println!("hi");
-                            }
                             ui.label("Frame time: ".to_string() + &game_state.get_delta_time().to_string());
                             ui.label("FPS: ".to_string() + &(1.0 / (game_state.get_delta_time() / 1000.0)).to_string());
                             ui.label("Number of render commands: ".to_string() + &(game_state.get_render_commands().len().to_string()));
-                            ui.label("Resource manager load time in ms: ".to_string() + &resource_load_time.to_string());
+                            ui.label(console.borrow().get_timings_string());
+                            egui::ComboBox::from_label("Current animation").selected_text(format!("{:?}", selected)).show_ui(ui, |ui| {
+                                for anim in resource_manager.get_skeleton_model("Roll_Caskett").unwrap().get_animation_controller().get_animations() {
+                                    ui.selectable_value(&mut selected, anim.to_string(), anim);
+                                }
+                            })
+                        });
+                        egui::Window::new("Console").fixed_size(egui::Vec2::new(300.0, 400.0)).show(&egui_context, |ui| {
+                            egui::ScrollArea::vertical().show(ui, |ui| {
+                                ui.label(console.borrow().get_log());
+                            });
+                            if ui.text_edit_singleline(&mut console_text).lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                if !console_text.is_empty() {
+                                    console.borrow_mut().output_to_console(&console_text);
+                                    console_text.clear();
+
+                                }
+                            }
                         });
                     });
+                    resource_manager.get_mut_skeleton_model("Roll_Caskett").unwrap().get_mut_animation_controller().set_current_animation(&selected);
                     platform.handle_platform_output(render_state.get_window(), full_output.platform_output);
                     let clipped_primitives = egui_context.tessellate(full_output.shapes, full_output.pixels_per_point);
 
