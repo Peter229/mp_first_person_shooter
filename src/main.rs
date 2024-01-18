@@ -148,8 +148,8 @@ fn main() {
             }
         }
         Event::AboutToWait => {
-            game_state.update(&mut inputs, &resource_manager);
-            render_state.update_transforms(game_state.get_render_commands());
+            game_state.update(&mut inputs, &mut resource_manager);
+            render_state.update_transforms(game_state.get_mut_render_commands());
             render_state.get_window().request_redraw();
         }
         _ => {}

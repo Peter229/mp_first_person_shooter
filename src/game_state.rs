@@ -1,5 +1,5 @@
 use crate::camera;
-use crate::render_commands;
+use crate::render_commands::*;
 use crate::collision;
 use crate::input::*;
 use crate::player;
@@ -19,7 +19,7 @@ pub struct GameState {
     current_tick: u32,
     current_time: std::time::SystemTime,
     camera: camera::Camera,
-    render_commands: Vec<render_commands::RenderCommands>,
+    render_commands: Vec<RenderCommands>,
     sphere: collision::Sphere,
     capsule: collision::Capsule,
     player: player::Player,
@@ -50,7 +50,7 @@ impl GameState {
         Self { current_state: States::Start, delta_time: 0.0, tick_time: 0.0, current_tick: 0, current_time, camera, render_commands: Vec::new(), sphere, capsule, player, hit_areas: Vec::new() }
     }
 
-    pub fn update(&mut self, inputs: &mut Inputs, resource_manager: &resource_manager::ResourceManager) {
+    pub fn update(&mut self, inputs: &mut Inputs, resource_manager: &mut resource_manager::ResourceManager) {
 
         self.delta_time = self.current_time.elapsed().unwrap().as_micros() as f32 / 1000.0;
         self.tick_time += self.delta_time;
@@ -70,7 +70,7 @@ impl GameState {
         self.render_commands.clear();
     }
 
-    fn tick(&mut self, inputs: &mut Inputs, resource_manager: &resource_manager::ResourceManager) {
+    fn tick(&mut self, inputs: &mut Inputs, resource_manager: &mut resource_manager::ResourceManager) {
 
         match self.current_state {
             States::Start => {
@@ -108,23 +108,23 @@ impl GameState {
 
         //Render area of game
         self.camera.update_from_player(&self.player);
-        self.render_commands.push(render_commands::RenderCommands::Camera(self.camera.build_projection_matrix().to_cols_array_2d()));
+        self.render_commands.push(RenderCommands::Camera(self.camera.build_projection_matrix().to_cols_array_2d()));
 
         //T * R * S
         {
             let rotation = glam::f32::Mat4::from_euler(glam::EulerRot::XYZ, self.current_tick as f32 / 10.0, self.current_tick as f32 / 10.0, 0.0);
-            let translation = glam::f32::Mat4::from_translation(glam::f32::Vec3::new((self.current_tick as f32 / 20.0).sin() * 2.0, 0.0, 0.0));
+            let translation = glam::f32::Mat4::from_translation(glam::f32::Vec3::new((self.current_tick as f32 / 20.0).sin() * 2.0, 7.0, 0.0));
             let transform = translation * rotation;
-            self.render_commands.push(render_commands::RenderCommands::Model(transform, "cube".to_string(), "tree".to_string()));
+            self.render_commands.push(RenderCommands::Model(ModelRenderCommand::new(transform, "cube", "tree")));
         }
         {
             let rotation = glam::f32::Mat4::from_euler(glam::EulerRot::XYZ, self.current_tick as f32 / 12.0, self.current_tick as f32 / 40.0, 0.0);
-            let translation = glam::f32::Mat4::from_translation(glam::f32::Vec3::new((self.current_tick as f32 / 10.0).sin() * 1.5, 2.0, 0.0));
+            let translation = glam::f32::Mat4::from_translation(glam::f32::Vec3::new((self.current_tick as f32 / 10.0).sin() * 1.5, 10.0, 0.0));
             let transform = translation * rotation;
-            self.render_commands.push(render_commands::RenderCommands::Model(transform, "cube".to_string(), "tree".to_string()));
+            self.render_commands.push(RenderCommands::Model(ModelRenderCommand::new(transform, "cube", "tree")));
         }
 
-        self.render_commands.push(render_commands::RenderCommands::Model(glam::f32::Mat4::IDENTITY, "test_triangle".to_string(), "debug".to_string()));
+        self.render_commands.push(RenderCommands::Model(ModelRenderCommand::new(glam::f32::Mat4::IDENTITY, "test_triangle", "debug")));
 
         self.sphere.render(&mut self.render_commands);
 
@@ -134,7 +134,12 @@ impl GameState {
             sphere.render(&mut self.render_commands);
         }
 
-        self.render_commands.push(render_commands::RenderCommands::Quad(glam::f32::Vec3::new(-0.005, -0.005, 0.0), glam::f32::Vec3::new(0.005, 0.005, 0.0), "dot_crosshair".to_string()));
+        let roll_model_matrix = glam::f32::Mat4::from_scale_rotation_translation(glam::f32::Vec3::new(0.1, 0.1, 0.1), glam::f32::Quat::from_rotation_x(90.0_f32.to_radians()), glam::f32::Vec3::new(2.0, 0.0, 0.0));
+
+        resource_manager.get_mut_skeleton_model(&"Roll_Caskett".to_string()).unwrap().update_skeleton(self.current_tick as f32);
+        self.render_commands.push(RenderCommands::SkeletonModel(SkeletonModelRenderCommand::new(roll_model_matrix, "Roll_Caskett", "Roll_Caskett")));
+
+        self.render_commands.push(RenderCommands::Quad(glam::f32::Vec3::new(-0.005, -0.005, 0.0), glam::f32::Vec3::new(0.005, 0.005, 0.0), "dot_crosshair".to_string()));
     }
 
     fn end_tick(&mut self) {
@@ -142,9 +147,14 @@ impl GameState {
         //If you want to save the current state put it here
     }
 
-    pub fn get_render_commands(&self) -> &Vec<render_commands::RenderCommands> {
+    pub fn get_render_commands(&self) -> &Vec<RenderCommands> {
         
         &self.render_commands
+    }
+
+    pub fn get_mut_render_commands(&mut self) -> &mut Vec<RenderCommands> {
+        
+        &mut self.render_commands
     }
 
     pub fn get_delta_time(&self) -> f32 {

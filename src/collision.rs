@@ -1,6 +1,6 @@
 use std::f32::EPSILON;
 
-use crate::render_commands;
+use crate::render_commands::*;
 
 //Collision detection methods
 //Will probably need oct tree or quad tree for performance
@@ -293,9 +293,9 @@ impl Sphere {
         glam::f32::Mat4::from_scale_rotation_translation(glam::f32::Vec3::new(self.radius, self.radius, self.radius), glam::f32::Quat::IDENTITY, self.center)
     }
 
-    pub fn render(&self, render_commands: &mut Vec<render_commands::RenderCommands>) {
+    pub fn render(&self, render_commands: &mut Vec<RenderCommands>) {
 
-        render_commands.push(render_commands::RenderCommands::Model(self.get_transform(), "sphere".to_string(), "debug".to_string()));
+        render_commands.push(RenderCommands::Model(ModelRenderCommand::new(self.get_transform(), "sphere", "debug")));
     }
 }
 
@@ -706,7 +706,7 @@ impl Capsule {
         (self.base + self.tip) / 2.0
     }
 
-    pub fn render(&self, render_commands: &mut Vec<render_commands::RenderCommands>) {
+    pub fn render(&self, render_commands: &mut Vec<RenderCommands>) {
 
         let up = (self.tip - self.base).normalize_or_zero();
         let line_end_offset = up * self.radius;
@@ -716,13 +716,13 @@ impl Capsule {
         let rotation = glam::f32::Quat::from_rotation_arc(glam::f32::Vec3::Y, up);
 
         let base_sphere = glam::f32::Mat4::from_scale_rotation_translation(glam::f32::Vec3::new(self.radius, self.radius, self.radius), rotation, base_sphere_center);
-        render_commands.push(render_commands::RenderCommands::Model(base_sphere, "sphere".to_string(), "debug".to_string()));
+        render_commands.push(RenderCommands::Model(ModelRenderCommand::new(base_sphere, "sphere", "debug")));
 
         let tip_sphere = glam::f32::Mat4::from_scale_rotation_translation(glam::f32::Vec3::new(self.radius, self.radius, self.radius), rotation, tip_sphere_center);
-        render_commands.push(render_commands::RenderCommands::Model(tip_sphere, "sphere".to_string(), "debug".to_string()));
+        render_commands.push(RenderCommands::Model(ModelRenderCommand::new(tip_sphere, "sphere", "debug")));
 
         let cylinder = glam::f32::Mat4::from_scale_rotation_translation(glam::f32::Vec3::new(self.radius, base_sphere_center.distance(tip_sphere_center) / 2.0, self.radius), rotation, center);
-        render_commands.push(render_commands::RenderCommands::Model(cylinder, "cylinder".to_string(), "debug".to_string()));
+        render_commands.push(RenderCommands::Model(ModelRenderCommand::new(cylinder, "cylinder", "debug")));
     }
 }
 
@@ -1018,7 +1018,7 @@ pub fn closest_point_on_line(a: &glam::f32::Vec3, b: &glam::f32::Vec3, point: &g
 
     let ab = *b - *a;
     let t = (*point - *a).dot(ab) / ab.dot(ab);
-    return (*a + (t.max(0.0).min(1.0)) * ab);
+    return *a + (t.max(0.0).min(1.0)) * ab;
 }
 
 pub fn closest_point_on_triangle(triangle: &Triangle, triangle_normal: &glam::f32::Vec3, point: &glam::f32::Vec3)  -> glam::f32::Vec3 {

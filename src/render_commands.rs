@@ -2,8 +2,39 @@ use wgpu::util::DeviceExt;
 
 pub enum RenderCommands {
     Camera([[f32; 4]; 4]),
-    Model(glam::f32::Mat4, String, String),
+    Model(ModelRenderCommand),
+    SkeletonModel(SkeletonModelRenderCommand),
     Quad(glam::f32::Vec3, glam::f32::Vec3, String),
+}
+
+pub struct ModelRenderCommand {
+    pub model_matrix: glam::f32::Mat4,
+    pub model_name: String,
+    pub texture_name: String,
+    pub render_transform_index: usize,
+}
+
+impl ModelRenderCommand {
+
+    pub fn new(model_matrix: glam::f32::Mat4, model_name: &str, texture_name: &str) -> Self {
+
+        Self { model_matrix, model_name: model_name.to_string(), texture_name: texture_name.to_string(), render_transform_index: 0 }
+    }
+}
+
+pub struct SkeletonModelRenderCommand {
+    pub model_matrix: glam::f32::Mat4,
+    pub model_name: String,
+    pub texture_name: String,
+    pub render_transform_index: usize,
+}
+
+impl SkeletonModelRenderCommand {
+
+    pub fn new(model_matrix: glam::f32::Mat4, model_name: &str, texture_name: &str) -> Self {
+
+        Self { model_matrix, model_name: model_name.to_string(), texture_name: texture_name.to_string(), render_transform_index: 0 }
+    }
 }
 
 pub struct RenderTransform {

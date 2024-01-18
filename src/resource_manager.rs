@@ -5,6 +5,7 @@ use crate::texture;
 
 pub struct ResourceManager {
     models: HashMap<String, model::Model>,
+    skeleton_models: HashMap<String, model::SkeletonModel>,
     textures: HashMap<String, texture::Texture>,
 }
 
@@ -12,7 +13,7 @@ impl ResourceManager {
 
     pub fn new() -> Self {
         
-        Self { models: HashMap::new(), textures: HashMap::new() }
+        Self { models: HashMap::new(), skeleton_models: HashMap::new(), textures: HashMap::new() }
     }
 
     pub fn load_model(&mut self, device: &wgpu::Device, path: &str, with_collision: bool) -> f32 {
@@ -29,6 +30,26 @@ impl ResourceManager {
 
             println!("Now loading {} at path {}", name, path);
             self.models.insert(name.to_string(), model::Model::new(device, path, with_collision));
+        }
+
+        let milli_time = (start.elapsed().as_micros() as f32 / 1000.0);
+        milli_time
+    }
+
+    pub fn load_skeleton_model(&mut self, device: &wgpu::Device, path: &str) -> f32 {
+
+        let start = std::time::Instant::now();
+
+        let name = path.split("/").last().unwrap().split(".").nth(0).unwrap();
+
+        if self.skeleton_models.contains_key(name) {
+
+            eprintln!("Already loaded skeleton model: {} at {}", name, path);
+        }
+        else {
+
+            println!("Now loading {} at path {}", name, path);
+            self.skeleton_models.insert(name.to_string(), model::SkeletonModel::new(device, path));
         }
 
         let milli_time = (start.elapsed().as_micros() as f32 / 1000.0);
@@ -61,6 +82,16 @@ impl ResourceManager {
         self.models.get(name)
     }
 
+    pub fn get_skeleton_model(&self, name: &String) -> Option<&model::SkeletonModel> {
+
+        self.skeleton_models.get(name)
+    }
+
+    pub fn get_mut_skeleton_model(&mut self, name: &String) -> Option<&mut model::SkeletonModel> {
+
+        self.skeleton_models.get_mut(name)
+    }
+
     pub fn get_texture(&self, name: &String) -> Option<&texture::Texture> {
 
         self.textures.get(name)
@@ -71,18 +102,25 @@ impl ResourceManager {
         let start = std::time::Instant::now();
         
         //Make just scan folder, need better way of telling we should generate collision
-        let things_to_load: Vec<(&str, bool)> = vec![("./assets/cube.glb", false),
-            ("./assets/sphere.glb", false),
-            ("./assets/capsule.glb", false),
-            ("./assets/cylinder.glb", false),
-            ("./assets/test_triangle.glb", true),
-            ("./assets/dot_crosshair.png", false),
-            ("./assets/tree.jpg", false),
-            ("./assets/debug.png", false)];
+        let things_to_load: Vec<(&str, bool, bool)> = vec![("./assets/cube.glb", false, false),
+            ("./assets/sphere.glb", false, false),
+            ("./assets/capsule.glb", false, false),
+            ("./assets/cylinder.glb", false, false),
+            ("./assets/test_triangle.glb", true, false),
+            ("./assets/Roll_Caskett.glb", false, true),
+            ("./assets/Roll_Caskett.png", false, false),
+            ("./assets/dot_crosshair.png", false, false),
+            ("./assets/tree.jpg", false, false),
+            ("./assets/debug.png", false, false)];
 
-        for (path, collide) in things_to_load {
+        for (path, collide, has_animation) in things_to_load {
             if path.contains(".glb") {
-                self.load_model(device, path, collide);
+                if has_animation {
+                    self.load_skeleton_model(device, path);
+                }
+                else {
+                    self.load_model(device, path, collide);
+                }
             }
             else {
                 self.load_texture(device, queue, path);

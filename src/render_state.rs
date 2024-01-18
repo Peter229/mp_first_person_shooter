@@ -4,7 +4,7 @@ use wgpu::util::DeviceExt;
 use crate::quad_renderer;
 use crate::resource_manager;
 use crate::texture;
-use crate::render_commands::{RenderCommands, RenderTransform};
+use crate::render_commands::*;
 use crate::gpu_types;
 
 pub struct RenderState {
@@ -14,7 +14,8 @@ pub struct RenderState {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     window: Window,
-    render_pipeline: wgpu::RenderPipeline,
+    static_mesh_render_pipeline: wgpu::RenderPipeline,
+    skeleton_mesh_render_pipeline: wgpu::RenderPipeline,
     depth_texture: texture::Texture,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
@@ -111,12 +112,17 @@ impl RenderState {
         });
 
         //Shaders
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        let static_mesh_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Static Mesh Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("static_mesh_shader.wgsl").into()),
         });
 
-        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        let skeleton_mesh_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Skeleton Mesh Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("skeleton_mesh_shader.wgsl").into()),
+        });
+
+        let static_render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
             bind_group_layouts: &[
                 &texture::Texture::get_texture_bind_group_layout(&device),
@@ -126,16 +132,68 @@ impl RenderState {
             push_constant_ranges: &[],
         });
 
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
+        let skeleton_render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Render Pipeline Layout"),
+            bind_group_layouts: &[
+                &texture::Texture::get_texture_bind_group_layout(&device),
+                &vertex_uniform_bind_group_layout,
+                &vertex_uniform_bind_group_layout,
+                &vertex_uniform_bind_group_layout,
+            ],
+            push_constant_ranges: &[],
+        });
+
+        let static_mesh_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Static Mesh Render Pipeline"),
+            layout: Some(&static_render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: &static_mesh_shader,
                 entry_point: "vs_main",
                 buffers: &[gpu_types::Vertex::desc(),],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
+                module: &static_mesh_shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Cw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
+        let skeleton_mesh_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Skeleton Mesh Render Pipeline"),
+            layout: Some(&skeleton_render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &skeleton_mesh_shader,
+                entry_point: "vs_main",
+                buffers: &[gpu_types::SkeletonVertex::desc(),],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &skeleton_mesh_shader,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
@@ -179,7 +237,8 @@ impl RenderState {
             queue,
             config,
             size,
-            render_pipeline,
+            static_mesh_render_pipeline,
+            skeleton_mesh_render_pipeline,
             depth_texture,
             camera_buffer,
             camera_bind_group,
@@ -220,18 +279,29 @@ impl RenderState {
     }
 
     //Do not parallelize this function or the rendering calls, render order is required for transform to stay correct
-    pub fn update_transforms(&mut self, render_commands: &Vec<RenderCommands>) {
+    pub fn update_transforms(&mut self, render_commands: &mut Vec<RenderCommands>) {
         //Have to do this before render or else the borrow checker gets mad 
         self.quad_renderer.clear_triangles();
         let mut render_transform_index = 0;
         for render_command in render_commands {
             match render_command {
-                RenderCommands::Model(transform, _, _) => {
+                RenderCommands::Model(mrc) => {
+                    mrc.render_transform_index = render_transform_index;
                     if self.render_transforms.len() <= render_transform_index {
-                        self.render_transforms.push(RenderTransform::new(&self.device, transform));
+                        self.render_transforms.push(RenderTransform::new(&self.device, &mrc.model_matrix));
                     }
                     else {
-                        self.render_transforms[render_transform_index].update_transform(transform);
+                        self.render_transforms[render_transform_index].update_transform(&mrc.model_matrix);
+                    }
+                    render_transform_index += 1;
+                },
+                RenderCommands::SkeletonModel(smrc) => {
+                    smrc.render_transform_index = render_transform_index;
+                    if self.render_transforms.len() <= render_transform_index {
+                        self.render_transforms.push(RenderTransform::new(&self.device, &smrc.model_matrix));
+                    }
+                    else {
+                        self.render_transforms[render_transform_index].update_transform(&smrc.model_matrix);
                     }
                     render_transform_index += 1;
                 },
@@ -255,9 +325,10 @@ impl RenderState {
             label: Some("Render Encoder"),
         });
 
+        //Main scene render pass
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("Scene Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -283,9 +354,7 @@ impl RenderState {
                 timestamp_writes: None,
             });
 
-            let mut render_transform_index = 0;
-
-            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_pipeline(&self.static_mesh_render_pipeline);
             //Force do camera first
             for render_command in render_commands {
                 match render_command {
@@ -298,26 +367,55 @@ impl RenderState {
             }
             for render_command in render_commands {
                 match render_command {
-                    RenderCommands::Model(transform, model_name, texture_name) => {
-                        let model = resource_manager.get_model(model_name);
-                        let texture = resource_manager.get_texture(texture_name);
-                        self.queue.write_buffer(self.render_transforms[render_transform_index].get_buffer(), 0, bytemuck::cast_slice(&transform.to_cols_array_2d()));
-                        render_pass.set_bind_group(2, self.render_transforms[render_transform_index].get_bind_group(), &[]);
-                        render_pass.set_bind_group(0, texture.unwrap().get_bind_group().unwrap(), &[]);
-                        render_pass.set_vertex_buffer(0, model.unwrap().get_vertex_buffer().slice(..));
-                        render_pass.set_index_buffer(model.unwrap().get_index_buffer().slice(..), wgpu::IndexFormat::Uint32);
-                        render_pass.draw_indexed(0..model.unwrap().get_indices_count(), 0, 0..1);
+                    RenderCommands::Model(mrc) => {
+                        let model = resource_manager.get_model(&mrc.model_name).unwrap();
+                        let texture = resource_manager.get_texture(&mrc.texture_name).unwrap();
+                        self.queue.write_buffer(self.render_transforms[mrc.render_transform_index].get_buffer(), 0, bytemuck::cast_slice(&mrc.model_matrix.to_cols_array_2d()));
+                        render_pass.set_bind_group(2, self.render_transforms[mrc.render_transform_index].get_bind_group(), &[]);
+                        render_pass.set_bind_group(0, texture.get_bind_group().unwrap(), &[]);
+                        render_pass.set_vertex_buffer(0, model.get_vertex_buffer().slice(..));
+                        render_pass.set_index_buffer(model.get_index_buffer().slice(..), wgpu::IndexFormat::Uint32);
+                        render_pass.draw_indexed(0..model.get_indices_count(), 0, 0..1);
+                    },
+                    _ => (),
+                }
+            }
 
-                        render_transform_index += 1;
+            //Skeleton animation pass
+            render_pass.set_pipeline(&self.skeleton_mesh_render_pipeline);
+            //Force do camera first
+            for render_command in render_commands {
+                match render_command {
+                    RenderCommands::Camera(matrix) => {
+                        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(matrix));
+                        render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+                    },
+                    _ => (),
+                }
+            }
+            for render_command in render_commands {
+                match render_command {
+                    RenderCommands::SkeletonModel(smrc) => {
+                        let model = resource_manager.get_skeleton_model(&smrc.model_name).unwrap();
+                        model.write_skeleton_buffer(&self.queue);
+                        render_pass.set_bind_group(3, model.get_joints_bind_group(), &[]);
+                        let texture = resource_manager.get_texture(&smrc.texture_name).unwrap();
+                        self.queue.write_buffer(self.render_transforms[smrc.render_transform_index].get_buffer(), 0, bytemuck::cast_slice(&smrc.model_matrix.to_cols_array_2d()));
+                        render_pass.set_bind_group(2, self.render_transforms[smrc.render_transform_index].get_bind_group(), &[]);
+                        render_pass.set_bind_group(0, texture.get_bind_group().unwrap(), &[]);
+                        render_pass.set_vertex_buffer(0, model.get_vertex_buffer().slice(..));
+                        render_pass.set_index_buffer(model.get_index_buffer().slice(..), wgpu::IndexFormat::Uint32);
+                        render_pass.draw_indexed(0..model.get_indices_count(), 0, 0..1);
                     },
                     _ => (),
                 }
             }
         }
 
+        //Render pass for quads, used for crosshair atm
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("Quad Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -336,8 +434,8 @@ impl RenderState {
             for render_command in render_commands {
                 match render_command {
                     RenderCommands::Quad(_, _, texture_name) => {
-                        let texture = resource_manager.get_texture(texture_name);
-                        render_pass.set_bind_group(0, texture.unwrap().get_bind_group().unwrap(), &[]);
+                        let texture = resource_manager.get_texture(texture_name).unwrap();
+                        render_pass.set_bind_group(0, texture.get_bind_group().unwrap(), &[]);
                         render_pass.set_vertex_buffer(0, self.quad_renderer.get_vertex_buffer().slice(..));
                         render_pass.draw(offset..(offset + 6), 0..1);
                         offset += 6;
@@ -347,24 +445,23 @@ impl RenderState {
             }
         }
 
-        //EGUI
-
-        let screen_descriptor = egui_wgpu::renderer::ScreenDescriptor {
-            size_in_pixels: [self.config.width, self.config.height],
-            pixels_per_point: ppp,
-        };
-
-        renderer.update_buffers(&self.device, &self.queue, &mut encoder, &paint_jobs, &screen_descriptor);
-
-        for (tex_id, img_delta) in &texture_deltas.set {
-            renderer.update_texture(&self.device, &self.queue, *tex_id, img_delta);
-        }
-
-        for tex_id in &texture_deltas.free {
-            renderer.free_texture(tex_id);
-        }
-
+        //EGUI render pass
         {
+            let screen_descriptor = egui_wgpu::renderer::ScreenDescriptor {
+                size_in_pixels: [self.config.width, self.config.height],
+                pixels_per_point: ppp,
+            };
+    
+            renderer.update_buffers(&self.device, &self.queue, &mut encoder, &paint_jobs, &screen_descriptor);
+    
+            for (tex_id, img_delta) in &texture_deltas.set {
+                renderer.update_texture(&self.device, &self.queue, *tex_id, img_delta);
+            }
+    
+            for tex_id in &texture_deltas.free {
+                renderer.free_texture(tex_id);
+            }
+
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("EGUI Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -382,7 +479,6 @@ impl RenderState {
 
             renderer.render(&mut render_pass, paint_jobs, &screen_descriptor);
         }
-        //
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
