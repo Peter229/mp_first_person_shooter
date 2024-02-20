@@ -7,7 +7,7 @@ pub struct AudioState {
     device: std::sync::Arc::<cpal::platform::Device>,
     config: cpal::StreamConfig,
     main_audio_thread: JoinHandle<()>,
-    mixer_handle: Rc<RefCell<MixerControl<[f32; 2]>>>,
+    mixer_handle: MixerControl<[f32; 2]>,
 }
 
 impl AudioState {
@@ -18,10 +18,8 @@ impl AudioState {
         let device = std::sync::Arc::new(host.default_output_device().expect("Failed top find a default output device"));
         let config = device.default_output_config().unwrap().config();
 
-        let (mut mixer_handle_t, mut mixer) = oddio::Mixer::new();
+        let (mut mixer_handle, mut mixer) = oddio::Mixer::new();
         let sample_rate = config.sample_rate.0;
-
-        let mut mixer_handle = Rc::new(RefCell::new(mixer_handle_t));
 
         let main_thread_config = config.clone();
         let main_thread_device = device.clone();
@@ -48,7 +46,7 @@ impl AudioState {
         AudioState { device: device.clone(), config, main_audio_thread, mixer_handle }
     }
 
-    pub fn play_wav(&self) {
+    pub fn play_wav(&mut self) {
         let mut reader = hound::WavReader::open("./assets/hitsound480.wav").unwrap();
         
         let hound::WavSpec {
@@ -71,6 +69,6 @@ impl AudioState {
         let samples_stereo = oddio::frame_stereo(&mut samples);
         let sound_frames = oddio::Frames::from_slice(source_sample_rate, samples_stereo);
 
-        self.mixer_handle.borrow_mut().play(oddio::FramesSignal::from(sound_frames));
+        self.mixer_handle.play(oddio::FramesSignal::from(sound_frames));
     }
 }

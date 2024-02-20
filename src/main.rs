@@ -49,7 +49,7 @@ fn main() {
 
     let mut inputs = input::Inputs::new();
 
-    let audio = audio::AudioState::new();
+    let mut audio = audio::AudioState::new();
 
 
     //EGUI
