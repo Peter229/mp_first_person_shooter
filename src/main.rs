@@ -20,6 +20,7 @@ mod input;
 mod quad_renderer;
 mod collision_world;
 mod console;
+mod audio;
 
 //Look at cpal for audio
 
@@ -48,6 +49,7 @@ fn main() {
 
     let mut inputs = input::Inputs::new();
 
+    let audio = audio::AudioState::new();
 
 
     //EGUI
@@ -91,6 +93,7 @@ fn main() {
                         },
                     ..
                 } => {
+                    audio.play_wav();
                     cursor_visible = !cursor_visible;
                     render_state.get_window().set_cursor_visible(cursor_visible);
                     if cursor_visible {

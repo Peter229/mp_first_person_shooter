@@ -367,7 +367,7 @@ impl SkeletonModel {
 
         let mut joints_temp = Vec::new();
 
-        self.animation_controller.update_time(time / 10.0);
+        self.animation_controller.update_time(time * 20.0);
 
         self.skeleton.set_joints_to_pose(&mut joints_temp, &self.animation_controller.get_current_animation(), self.animation_controller.time);
 

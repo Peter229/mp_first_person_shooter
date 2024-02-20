@@ -21,3 +21,6 @@ egui-wgpu = "0.25"
 egui = "0.25"
 postcard = "1.0.8"
 serde = { version = "1.0.193", features = ["derive"] }
+cpal = "0.15.2"
+hound = "3.5.1"
+oddio = "0.7.4"

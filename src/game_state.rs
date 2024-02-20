@@ -144,7 +144,7 @@ impl GameState {
 
         let roll_model_matrix = glam::f32::Mat4::from_scale_rotation_translation(glam::f32::Vec3::new(0.1, 0.1, 0.1), glam::f32::Quat::from_rotation_x(90.0_f32.to_radians()), glam::f32::Vec3::new(2.0, 0.0, 0.0));
 
-        resource_manager.get_mut_skeleton_model(&"Roll_Caskett".to_string()).unwrap().update_skeleton(self.delta_time);
+        resource_manager.get_mut_skeleton_model(&"Roll_Caskett".to_string()).unwrap().update_skeleton(TICK_RATE_SECONDS);
         self.render_commands.push(RenderCommands::SkeletonModel(SkeletonModelRenderCommand::new(roll_model_matrix, "Roll_Caskett", "Roll_Caskett")));
 
         self.render_commands.push(RenderCommands::Quad(glam::f32::Vec3::new(-0.005, -0.005, 0.0), glam::f32::Vec3::new(0.005, 0.005, 0.0), "dot_crosshair".to_string()));
