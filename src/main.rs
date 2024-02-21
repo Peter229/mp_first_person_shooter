@@ -93,7 +93,6 @@ fn main() {
                         },
                     ..
                 } => {
-                    audio.play_wav();
                     cursor_visible = !cursor_visible;
                     render_state.get_window().set_cursor_visible(cursor_visible);
                     if cursor_visible {
@@ -104,7 +103,29 @@ fn main() {
                     {
                         render_state.get_window().set_cursor_grab(winit::window::CursorGrabMode::Confined).unwrap();
                     }
-                },
+                }
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            state: ElementState::Pressed,
+                            physical_key: winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::KeyT),
+                            ..
+                        },
+                    ..
+                } => {
+                    audio.play_wav_from_path("./assets/hitsound480.wav");
+                }
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            state: ElementState::Pressed,
+                            physical_key: winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::KeyY),
+                            ..
+                        },
+                    ..
+                } => {
+                    audio.play_wav(resource_manager.get_sound("hitsound480").unwrap());
+                }
                 WindowEvent::Resized(physical_size) => { 
                     render_state.resize(*physical_size); 
                 }
